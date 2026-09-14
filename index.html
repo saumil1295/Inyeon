@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inyeon</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <h1>What's on your mind?</h1>
+    <p class="subtext">Anonymous. No profile. No one you know will see this.</p>
+
+    <textarea id="postText" placeholder="Say as much or as little as you want..."></textarea>
+    <button id="submitBtn">Post</button>
+
+    <p id="confirmation" class="hidden">This is out there now.</p>
+  </main>
+
+  <!-- Supabase client library -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js"></script>
+</body>
+</html>

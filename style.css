@@ -1,0 +1,103 @@
+body {
+  font-family: system-ui, sans-serif;
+  background: #f7f6f4;
+  color: #2e2e2e;
+  display: flex;
+  justify-content: center;
+  padding: 60px 20px;
+}
+
+main {
+  max-width: 480px;
+  width: 100%;
+  text-align: center;
+}
+
+h1 {
+  font-weight: 500;
+  font-size: 1.6rem;
+  margin-bottom: 4px;
+}
+
+.subtext {
+  color: #888;
+  font-size: 0.9rem;
+  margin-bottom: 24px;
+}
+
+textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+  font-size: 1rem;
+  resize: vertical;
+  font-family: inherit;
+}
+
+button {
+  margin-top: 14px;
+  padding: 10px 24px;
+  border: none;
+  border-radius: 20px;
+  background: #4a4a68;
+  color: white;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #3a3a54;
+}
+
+.hidden {
+  display: none;
+}
+
+#confirmation {
+  margin-top: 20px;
+  color: #555;
+}
+.response-btn {
+  display: block;
+  width: 100%;
+  margin: 8px 0;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+  background: white;
+  color: #2e2e2e;
+  font-size: 0.95rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.response-btn:hover {
+  background: #f0f0f0;
+}
+.post-block {
+  text-align: left;
+  border-bottom: 1px solid #eee;
+  padding: 20px 0;
+}
+
+.post-text {
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+
+.response-item {
+  background: #f0eef7;
+  padding: 10px 14px;
+  border-radius: 10px;
+  margin: 6px 0;
+  color: #444;
+  font-size: 0.9rem;
+}
+
+.no-responses {
+  color: #999;
+  font-size: 0.85rem;
+  font-style: italic;
+}
