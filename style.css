@@ -279,3 +279,26 @@ button {
   background: var(--accent-2);
   color: #FFFFFF;
 }
+
+#submitBtn {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.home-link {
+  position: fixed;
+  top: 24px;
+  left: 24px;
+  font-family: 'Quicksand', sans-serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--text);
+  text-decoration: none;
+  letter-spacing: -0.01em;
+  transition: color 0.2s ease;
+}
+
+.home-link:hover {
+  color: var(--accent);
+}
