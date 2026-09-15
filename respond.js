@@ -128,6 +128,7 @@ async function sendResponse(responseText, buttonEl) {
     return;
   }
 
+  // Instant visual feedback
   if (buttonEl) {
     buttonEl.classList.add("response-btn-selected");
     optionsContainer.querySelectorAll(".response-btn").forEach(b => {
@@ -138,18 +139,17 @@ async function sendResponse(responseText, buttonEl) {
     document.activeElement.blur();
   }
 
-  const { error } = await client.from("responses").insert({
-    post_id: currentPost.id,
+  // Fire the save in the background — don't let network speed affect the animation
+  const savedPostId = currentPost.id;
+  client.from("responses").insert({
+    post_id: savedPostId,
     response_text: responseText,
     responder_anon_id: anonId
+  }).then(({ error }) => {
+    if (error) console.error(error);
   });
 
-  if (error) {
-    console.error(error);
-    alert("Something went wrong. Try again.");
-    return;
-  }
-
+  // Transition runs on a fixed clock, independent of the save above
   setTimeout(() => {
     fadeOut(postContainer, () => {
       fadeIn(confirmation);
@@ -160,5 +160,5 @@ async function sendResponse(responseText, buttonEl) {
         });
       }, 900);
     });
-  }, 450);
+  }, 250);
 }
