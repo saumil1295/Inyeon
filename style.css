@@ -289,7 +289,8 @@ button {
 .home-link {
   position: fixed;
   top: 24px;
-  left: 24px;
+  left: 50%;
+  transform: translateX(-50%);
   font-family: 'Quicksand', sans-serif;
   font-weight: 700;
   font-size: 1.1rem;
@@ -297,8 +298,4 @@ button {
   text-decoration: none;
   letter-spacing: -0.01em;
   transition: color 0.2s ease;
-}
-
-.home-link:hover {
-  color: var(--accent);
 }
