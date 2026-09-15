@@ -31,7 +31,7 @@ main {
   width: 100%;
 }
 
-main {
+h1, .subtext, #postText, .post-text {
   text-align: center;
 }
 
@@ -113,16 +113,16 @@ button {
   font-size: 0.95rem;
 }
 
-/* Navigation */
+#postContainer, #confirmation {
+  transition: opacity 0.3s ease;
+}
+
 .app-nav {
   margin-top: 56px;
   padding-top: 24px;
   border-top: 1px solid var(--border);
   display: flex;
   gap: 12px;
-}
-
-.app-nav {
   justify-content: center;
 }
 
@@ -142,7 +142,6 @@ button {
   color: #FFFFFF;
 }
 
-/* Respond page */
 #postContainer {
   background: var(--surface);
   border-radius: 20px;
@@ -174,7 +173,7 @@ button {
   padding: 14px 18px;
   font-size: 0.95rem;
   font-weight: 500;
-  transition: background 0.2s ease, transform 0.15s ease;
+  transition: background 0.25s ease, opacity 0.25s ease, transform 0.15s ease;
 }
 
 @media (hover: hover) {
@@ -185,6 +184,11 @@ button {
   }
 }
 
+.response-btn-selected {
+  background: var(--accent) !important;
+  color: #FFFFFF !important;
+}
+
 #noPosts {
   color: var(--text-muted);
   font-size: 0.95rem;
@@ -192,7 +196,6 @@ button {
   padding: 60px 0;
 }
 
-/* My Responses page */
 .post-block {
   background: var(--surface);
   border-radius: 18px;
@@ -231,7 +234,6 @@ button {
   padding: 60px 0;
 }
 
-/* Crisis message */
 .crisis-message {
   text-align: left;
   background: var(--surface);
@@ -260,7 +262,6 @@ button {
   font-size: 0.88rem !important;
 }
 
-/* Moderation page controls */
 .category-select, .flag-btn {
   margin-top: 10px;
   margin-right: 10px;
@@ -277,9 +278,4 @@ button {
 .flag-btn:hover {
   background: var(--accent-2);
   color: #FFFFFF;
-}
-
-.response-btn-selected {
-  background: var(--accent) !important;
-  color: #FFFFFF !important;
 }

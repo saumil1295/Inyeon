@@ -21,10 +21,26 @@ const noPosts = document.getElementById("noPosts");
 
 let currentPost = null;
 
+function fadeOut(el, callback) {
+  el.style.opacity = "0";
+  setTimeout(() => {
+    el.classList.add("hidden");
+    callback && callback();
+  }, 300);
+}
+
+function fadeIn(el) {
+  el.classList.remove("hidden");
+  el.style.opacity = "0";
+  requestAnimationFrame(() => {
+    el.style.opacity = "1";
+  });
+}
+
 async function loadNextPost() {
   confirmation.textContent = "Sent. That mattered.";
   confirmation.classList.add("hidden");
-  postContainer.classList.remove("hidden");
+  confirmation.style.opacity = "0";
 
   const myAnonId = getAnonId();
 
@@ -66,20 +82,20 @@ async function loadNextPost() {
     return;
   }
 
-  currentPost = posts[0];
-  postContainer.classList.remove("hidden");
   noPosts.classList.add("hidden");
-  postTextEl.textContent = currentPost.content;
 
   const { data: options, error: optionsError } = await client
     .from("response_options")
     .select("*")
-    .eq("need_category", currentPost.need_category);
+    .eq("need_category", posts[0].need_category);
 
   if (optionsError) {
     console.error(optionsError);
     return;
   }
+
+  currentPost = posts[0];
+  postTextEl.textContent = currentPost.content;
 
   optionsContainer.innerHTML = "";
   options.forEach(option => {
@@ -89,6 +105,8 @@ async function loadNextPost() {
     btn.addEventListener("click", () => sendResponse(option.response_text, btn));
     optionsContainer.appendChild(btn);
   });
+
+  fadeIn(postContainer);
 }
 
 loadNextPost();
@@ -110,7 +128,6 @@ async function sendResponse(responseText, buttonEl) {
     return;
   }
 
-  // Immediately lock in the highlight, no flicker
   if (buttonEl) {
     buttonEl.classList.add("response-btn-selected");
     optionsContainer.querySelectorAll(".response-btn").forEach(b => {
@@ -133,11 +150,15 @@ async function sendResponse(responseText, buttonEl) {
     return;
   }
 
-  // Let the highlight sit for a beat, then transition to a clean confirmation screen
   setTimeout(() => {
-    postContainer.classList.add("hidden");
-    confirmation.classList.remove("hidden");
+    fadeOut(postContainer, () => {
+      fadeIn(confirmation);
 
-    setTimeout(loadNextPost, 900);
-  }, 500);
+      setTimeout(() => {
+        fadeOut(confirmation, () => {
+          loadNextPost();
+        });
+      }, 900);
+    });
+  }, 450);
 }
