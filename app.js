@@ -53,7 +53,7 @@ function detectCrisis(text) {
   return crisisKeywords.some(keyword => lower.includes(keyword));
 }
 
-async function hasReachedDailyLimit(anonId, maxPosts = 8) {
+async function hasReachedDailyLimit(anonId, maxPosts = 5) {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
 
