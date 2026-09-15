@@ -1,54 +1,106 @@
+@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+:root {
+  --bg: #F4F7F5;
+  --surface: #FFFFFF;
+  --surface-2: #E8EFEA;
+  --text: #2E3A36;
+  --text-muted: #7C8B85;
+  --accent: #7FA895;
+  --accent-2: #6C93A6;
+  --border: rgba(46, 58, 54, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
 body {
-  font-family: system-ui, sans-serif;
-  background: #f7f6f4;
-  color: #2e2e2e;
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  margin: 0;
+  padding: 80px 24px 60px;
   display: flex;
   justify-content: center;
-  padding: 60px 20px;
+  min-height: 100vh;
 }
 
 main {
-  max-width: 480px;
+  max-width: 520px;
   width: 100%;
+}
+
+main {
   text-align: center;
 }
 
 h1 {
-  font-weight: 500;
-  font-size: 1.6rem;
-  margin-bottom: 4px;
+  font-family: 'Quicksand', sans-serif;
+  font-weight: 600;
+  font-size: 2rem;
+  letter-spacing: -0.01em;
+  margin: 0 0 6px;
+  color: var(--text);
 }
 
 .subtext {
-  color: #888;
-  font-size: 0.9rem;
-  margin-bottom: 24px;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  margin-bottom: 40px;
+  line-height: 1.5;
 }
 
 textarea {
   width: 100%;
-  min-height: 120px;
-  padding: 14px;
-  border-radius: 10px;
-  border: 1px solid #ddd;
-  font-size: 1rem;
+  min-height: 140px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  padding: 18px;
   resize: vertical;
-  font-family: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(127, 168, 149, 0.15);
+}
+
+textarea::placeholder {
+  color: var(--text-muted);
 }
 
 button {
-  margin-top: 14px;
-  padding: 10px 24px;
-  border: none;
-  border-radius: 20px;
-  background: #4a4a68;
-  color: white;
-  font-size: 1rem;
+  font-family: 'Inter', sans-serif;
   cursor: pointer;
 }
 
-button:hover {
-  background: #3a3a54;
+#submitBtn {
+  margin-top: 20px;
+  padding: 13px 30px;
+  border: none;
+  border-radius: 100px;
+  background: var(--accent);
+  color: #FFFFFF;
+  font-size: 0.95rem;
+  font-weight: 600;
+  box-shadow: 0 2px 10px rgba(127, 168, 149, 0.3);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+#submitBtn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(127, 168, 149, 0.4);
+}
+
+#submitBtn:active {
+  transform: translateY(0);
 }
 
 .hidden {
@@ -56,72 +108,171 @@ button:hover {
 }
 
 #confirmation {
-  margin-top: 20px;
-  color: #555;
-}
-.response-btn {
-  display: block;
-  width: 100%;
-  margin: 8px 0;
-  padding: 12px;
-  border-radius: 10px;
-  border: 1px solid #ddd;
-  background: white;
-  color: #2e2e2e;
+  margin-top: 24px;
+  color: var(--text-muted);
   font-size: 0.95rem;
-  cursor: pointer;
+}
+
+/* Navigation */
+.app-nav {
+  margin-top: 56px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 12px;
+}
+
+.app-nav {
+  justify-content: center;
+}
+
+.app-nav a {
+  color: var(--accent-2);
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 100px;
+  background: var(--surface-2);
+  transition: background 0.2s ease;
+}
+
+.app-nav a:hover {
+  background: var(--accent);
+  color: #FFFFFF;
+}
+
+/* Respond page */
+#postContainer {
+  background: var(--surface);
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: 0 4px 20px rgba(46, 58, 54, 0.06);
+}
+
+#postText {
+  font-family: 'Quicksand', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 500;
+  line-height: 1.6;
+  margin: 0 0 28px;
+  color: var(--text);
+}
+
+#optionsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.response-btn {
+  background: var(--surface-2);
+  border: none;
+  border-radius: 14px;
+  color: var(--text);
   text-align: left;
+  padding: 14px 18px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: background 0.2s ease, transform 0.15s ease;
 }
 
 .response-btn:hover {
-  background: #f0f0f0;
+  background: var(--accent);
+  color: #FFFFFF;
+  transform: translateX(2px);
 }
+
+#noPosts {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  text-align: center;
+  padding: 60px 0;
+}
+
+/* My Responses page */
 .post-block {
-  text-align: left;
-  border-bottom: 1px solid #eee;
-  padding: 20px 0;
+  background: var(--surface);
+  border-radius: 18px;
+  padding: 24px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 12px rgba(46, 58, 54, 0.05);
 }
 
 .post-text {
-  font-weight: 500;
-  margin-bottom: 10px;
+  font-family: 'Quicksand', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 14px;
+  color: var(--text);
 }
 
 .response-item {
-  background: #f0eef7;
-  padding: 10px 14px;
+  background: var(--surface-2);
+  border-left: 3px solid var(--accent);
+  padding: 12px 16px;
   border-radius: 10px;
-  margin: 6px 0;
-  color: #444;
+  margin: 8px 0;
+  color: var(--text);
   font-size: 0.9rem;
 }
 
 .no-responses {
-  color: #999;
+  color: var(--text-muted);
   font-size: 0.85rem;
   font-style: italic;
 }
 
+#emptyState {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 60px 0;
+}
+
+/* Crisis message */
 .crisis-message {
   text-align: left;
-  background: #f5f0ee;
-  border-radius: 12px;
-  padding: 20px;
-  margin-top: 20px;
+  background: var(--surface);
+  border-left: 3px solid var(--accent-2);
+  border-radius: 16px;
+  padding: 24px;
+  margin-top: 24px;
   line-height: 1.6;
+  box-shadow: 0 4px 16px rgba(46, 58, 54, 0.06);
 }
 
 .crisis-message p {
   margin: 10px 0;
+  color: var(--text);
+  font-size: 0.95rem;
 }
 
 .crisis-message a {
-  color: #4a4a68;
+  color: var(--accent-2);
   font-weight: 600;
 }
 
 .crisis-soft {
-  color: #888;
+  color: var(--text-muted) !important;
   font-style: italic;
-  font-size: 0.9rem;
+  font-size: 0.88rem !important;
+}
+
+/* Moderation page controls */
+.category-select, .flag-btn {
+  margin-top: 10px;
+  margin-right: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  border: none;
+  border-radius: 100px;
+  padding: 8px 16px;
+  font-size: 0.85rem;
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
+}
+
+.flag-btn:hover {
+  background: var(--accent-2);
+  color: #FFFFFF;
 }

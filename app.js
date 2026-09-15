@@ -55,7 +55,7 @@ function guessCategory(text) {
     }
   }
 
-  return null; // no match — stays uncategorized until you manually tag it
+  return "general"; // fallback — never leave a post uncategorized
 }
 
 submitBtn.addEventListener("click", async () => {
