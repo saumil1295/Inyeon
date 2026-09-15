@@ -101,3 +101,27 @@ button:hover {
   font-size: 0.85rem;
   font-style: italic;
 }
+
+.crisis-message {
+  text-align: left;
+  background: #f5f0ee;
+  border-radius: 12px;
+  padding: 20px;
+  margin-top: 20px;
+  line-height: 1.6;
+}
+
+.crisis-message p {
+  margin: 10px 0;
+}
+
+.crisis-message a {
+  color: #4a4a68;
+  font-weight: 600;
+}
+
+.crisis-soft {
+  color: #888;
+  font-style: italic;
+  font-size: 0.9rem;
+}

@@ -20,6 +20,19 @@ const submitBtn = document.getElementById("submitBtn");
 const postText = document.getElementById("postText");
 const confirmation = document.getElementById("confirmation");
 
+function detectCrisis(text) {
+  const lower = text.toLowerCase();
+
+  const crisisKeywords = [
+    "kill myself", "end my life", "suicide", "want to die",
+    "don't want to live", "no reason to live", "better off dead",
+    "hurt myself", "self harm", "cutting myself", "ending it all",
+    "can't go on", "not worth living"
+  ];
+
+  return crisisKeywords.some(keyword => lower.includes(keyword));
+}
+
 function guessCategory(text) {
   const lower = text.toLowerCase();
 
@@ -49,13 +62,14 @@ submitBtn.addEventListener("click", async () => {
   const text = postText.value.trim();
   if (!text) return;
 
-  const guessedCategory = guessCategory(text);
+  const isCrisis = detectCrisis(text);
+  const guessedCategory = isCrisis ? null : guessCategory(text);
 
   const { error } = await client.from("posts").insert({
     content: text,
     anon_id: getAnonId(),
     need_category: guessedCategory,
-    status: "active"
+    status: isCrisis ? "flagged" : "active"
   });
 
   if (error) {
@@ -65,6 +79,24 @@ submitBtn.addEventListener("click", async () => {
   }
 
   postText.value = "";
-  confirmation.classList.remove("hidden");
-  setTimeout(() => confirmation.classList.add("hidden"), 3000);
+
+  if (isCrisis) {
+    showCrisisResponse();
+  } else {
+    confirmation.classList.remove("hidden");
+    setTimeout(() => confirmation.classList.add("hidden"), 3000);
+  }
 });
+
+function showCrisisResponse() {
+  confirmation.innerHTML = `
+    <div class="crisis-message">
+      <p>It sounds like you're carrying a lot right now.</p>
+      <p>What you're feeling matters, and you deserve support beyond what this app can give.</p>
+      <p><strong>iCall</strong> is free and confidential: <a href="tel:+919152987821">+91 9152987821</a></p>
+      <p><strong>Vandrevala Foundation</strong> (24/7): <a href="tel:+919999666555">+91 9999 666 555</a></p>
+      <p class="crisis-soft">You don't have to do anything right now. We're not going anywhere.</p>
+    </div>
+  `;
+  confirmation.classList.remove("hidden");
+};
