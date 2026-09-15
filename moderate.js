@@ -1,3 +1,22 @@
+const MODERATOR_PASSWORD = "Nmvakrnj12";
+
+function checkModeratorAccess() {
+  const stored = sessionStorage.getItem("inyeon_mod_access");
+  if (stored === "granted") return true;
+
+  const entered = prompt("Enter moderator password:");
+  if (entered === MODERATOR_PASSWORD) {
+    sessionStorage.setItem("inyeon_mod_access", "granted");
+    return true;
+  }
+  return false;
+}
+
+if (!checkModeratorAccess()) {
+  document.body.innerHTML = "<p style='text-align:center; margin-top:100px; color:#7C8B85; font-family: Inter, sans-serif;'>Access denied.</p>";
+  throw new Error("Unauthorized access to moderation page");
+}
+
 const SUPABASE_URL = "https://fjgshtktadaddwmshugw.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZqZ3NodGt0YWRhZGR3bXNodWd3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzNzEzODQsImV4cCI6MjEwNDk0NzM4NH0.fMUzZ2chICrxSvRVdwrEb9TseFY532kC2KtsvV_zpGM";
 
@@ -35,7 +54,7 @@ async function loadAllPosts() {
 
     const flagBtn = document.createElement("button");
     flagBtn.textContent = post.status === "flagged" ? "Unflag" : "Flag";
-    flagBtn.classList.add("response-btn");
+    flagBtn.classList.add("flag-btn");
     flagBtn.addEventListener("click", async () => {
       const newStatus = post.status === "flagged" ? "active" : "flagged";
       const { error: updateError } = await client
@@ -54,7 +73,8 @@ async function loadAllPosts() {
     block.appendChild(flagBtn);
 
     const categorySelect = document.createElement("select");
-    ["", "heartbreak", "loneliness", "work_burnout", "anxiety"].forEach(cat => {
+    categorySelect.classList.add("category-select");
+    ["", "heartbreak", "loneliness", "work_burnout", "anxiety", "general"].forEach(cat => {
       const opt = document.createElement("option");
       opt.value = cat;
       opt.textContent = cat || "Set category...";
