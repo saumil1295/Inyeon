@@ -20,14 +20,41 @@ const submitBtn = document.getElementById("submitBtn");
 const postText = document.getElementById("postText");
 const confirmation = document.getElementById("confirmation");
 
+function guessCategory(text) {
+  const lower = text.toLowerCase();
+
+  const categoryKeywords = {
+    heartbreak: ["breakup", "broke up", "ex ", "heartbreak", "heartbroken", "dumped", "left me"],
+    loneliness: ["lonely", "alone", "no one", "isolated", "nobody"],
+    work_burnout: ["burnout", "exhausted", "overworked", "job", "boss", "workload", "tired of work"],
+    anxiety: ["anxious", "anxiety", "panic", "overwhelmed", "can't breathe", "racing thoughts"],
+    family_conflict: ["family", "parents", "mom", "dad", "sister", "brother"],
+    grief: ["died", "passed away", "loss", "grief", "miss him", "miss her"],
+    self_doubt: ["not good enough", "failure", "stuck", "worthless", "doubt myself"],
+    exam_stress: ["exam", "results", "marks", "studying", "test tomorrow"],
+    financial_stress: ["money", "debt", "broke", "can't afford", "financial"],
+    existential_drift: ["lost", "no direction", "purpose", "what am i doing", "meaningless"]
+  };
+
+  for (const [category, keywords] of Object.entries(categoryKeywords)) {
+    if (keywords.some(keyword => lower.includes(keyword))) {
+      return category;
+    }
+  }
+
+  return null; // no match — stays uncategorized until you manually tag it
+}
+
 submitBtn.addEventListener("click", async () => {
   const text = postText.value.trim();
   if (!text) return;
 
+  const guessedCategory = guessCategory(text);
+
   const { error } = await client.from("posts").insert({
     content: text,
     anon_id: getAnonId(),
-    need_category: null,   // we'll add category tagging later
+    need_category: guessedCategory,
     status: "active"
   });
 
