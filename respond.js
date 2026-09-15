@@ -22,19 +22,14 @@ const noPosts = document.getElementById("noPosts");
 let currentPost = null;
 
 async function loadNextPost() {
-    window.loadCount = (window.loadCount || 0) + 1;
-  console.log("loadNextPost call #", window.loadCount);
   confirmation.classList.add("hidden");
 
   const myAnonId = getAnonId();
-  console.log("anon id:", myAnonId);
 
   const { data: myResponses, error: myResponsesError } = await client
     .from("responses")
     .select("post_id")
     .eq("responder_anon_id", myAnonId);
-
-  console.log("myResponses:", myResponses, "error:", myResponsesError);
 
   if (myResponsesError) {
     console.error(myResponsesError);
@@ -42,7 +37,6 @@ async function loadNextPost() {
   }
 
   const respondedPostIds = myResponses.map(r => r.post_id);
-  console.log("respondedPostIds:", respondedPostIds);
 
   let query = client
     .from("posts")
@@ -58,7 +52,6 @@ async function loadNextPost() {
   }
 
   const { data: posts, error } = await query;
-  console.log("posts:", posts, "error:", error);
 
   if (error) {
     console.error(error);
@@ -81,8 +74,6 @@ async function loadNextPost() {
     .select("*")
     .eq("need_category", currentPost.need_category);
 
-  console.log("options:", options, "error:", optionsError);
-
   if (optionsError) {
     console.error(optionsError);
     return;
@@ -97,7 +88,9 @@ async function loadNextPost() {
     optionsContainer.appendChild(btn);
   });
 }
+
 loadNextPost();
+
 async function sendResponse(responseText) {
   const { error } = await client.from("responses").insert({
     post_id: currentPost.id,
