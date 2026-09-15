@@ -24,6 +24,7 @@ let currentPost = null;
 async function loadNextPost() {
   confirmation.textContent = "Sent. That mattered.";
   confirmation.classList.add("hidden");
+  postContainer.classList.remove("hidden");
 
   const myAnonId = getAnonId();
 
@@ -109,8 +110,15 @@ async function sendResponse(responseText, buttonEl) {
     return;
   }
 
+  // Immediately lock in the highlight, no flicker
   if (buttonEl) {
     buttonEl.classList.add("response-btn-selected");
+    optionsContainer.querySelectorAll(".response-btn").forEach(b => {
+      if (b !== buttonEl) b.style.opacity = "0.35";
+    });
+  }
+  if (document.activeElement) {
+    document.activeElement.blur();
   }
 
   const { error } = await client.from("responses").insert({
@@ -125,14 +133,11 @@ async function sendResponse(responseText, buttonEl) {
     return;
   }
 
-  if (document.activeElement) {
-    document.activeElement.blur();
-  }
-
-  confirmation.classList.remove("hidden");
-
+  // Let the highlight sit for a beat, then transition to a clean confirmation screen
   setTimeout(() => {
     postContainer.classList.add("hidden");
-    loadNextPost();
-  }, 600);
+    confirmation.classList.remove("hidden");
+
+    setTimeout(loadNextPost, 900);
+  }, 500);
 }
