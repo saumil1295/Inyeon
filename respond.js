@@ -98,13 +98,13 @@ async function sendResponse(responseText) {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
 
-  const { data: todayResponses, error: countError } = await client
+  const { count, error: countError } = await client
     .from("responses")
-    .select("id")
+    .select("id", { count: "exact", head: true })
     .eq("responder_anon_id", anonId)
     .gte("created_at", startOfDay.toISOString());
 
-  if (!countError && todayResponses.length >= 50) {
+  if (!countError && count >= 50) {
     alert("You've reached today's response limit. Come back tomorrow.");
     return;
   }
@@ -128,5 +128,5 @@ async function sendResponse(responseText) {
   postContainer.classList.add("hidden");
   confirmation.classList.remove("hidden");
 
-  setTimeout(loadNextPost, 1500);
+  setTimeout(loadNextPost, 600);
 }

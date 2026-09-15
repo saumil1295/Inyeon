@@ -1,5 +1,3 @@
-// Replace these with your actual Supabase project values
-// Find them in Supabase dashboard → Project Settings → API
 const SUPABASE_URL = "https://fjgshtktadaddwmshugw.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZqZ3NodGt0YWRhZGR3bXNodWd3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzNzEzODQsImV4cCI6MjEwNDk0NzM4NH0.fMUzZ2chICrxSvRVdwrEb9TseFY532kC2KtsvV_zpGM";
 
@@ -57,9 +55,9 @@ async function hasReachedDailyLimit(anonId, maxPosts = 5) {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
 
-  const { data, error } = await client
+  const { count, error } = await client
     .from("posts")
-    .select("id")
+    .select("id", { count: "exact", head: true })
     .eq("anon_id", anonId)
     .gte("created_at", startOfDay.toISOString());
 
@@ -68,7 +66,7 @@ async function hasReachedDailyLimit(anonId, maxPosts = 5) {
     return false;
   }
 
-  return data.length >= maxPosts;
+  return count >= maxPosts;
 }
 
 const submitBtn = document.getElementById("submitBtn");
