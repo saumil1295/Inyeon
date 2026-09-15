@@ -22,6 +22,7 @@ const noPosts = document.getElementById("noPosts");
 let currentPost = null;
 
 async function loadNextPost() {
+  confirmation.textContent = "Sent. That mattered.";
   confirmation.classList.add("hidden");
 
   const myAnonId = getAnonId();
@@ -92,10 +93,26 @@ async function loadNextPost() {
 loadNextPost();
 
 async function sendResponse(responseText) {
+  const anonId = getAnonId();
+
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const { data: todayResponses, error: countError } = await client
+    .from("responses")
+    .select("id")
+    .eq("responder_anon_id", anonId)
+    .gte("created_at", startOfDay.toISOString());
+
+  if (!countError && todayResponses.length >= 50) {
+    alert("You've reached today's response limit. Come back tomorrow.");
+    return;
+  }
+
   const { error } = await client.from("responses").insert({
     post_id: currentPost.id,
     response_text: responseText,
-    responder_anon_id: getAnonId()
+    responder_anon_id: anonId
   });
 
   if (error) {
