@@ -79,9 +79,15 @@ textarea::placeholder {
 button {
   font-family: 'Inter', sans-serif;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 #submitBtn {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
   margin-top: 20px;
   padding: 13px 30px;
   border: none;
@@ -115,6 +121,24 @@ button {
 
 #postContainer, #confirmation {
   transition: opacity 0.3s ease;
+}
+
+.home-link {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'Quicksand', sans-serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--text);
+  text-decoration: none;
+  letter-spacing: -0.01em;
+  transition: color 0.2s ease;
+}
+
+.home-link:hover {
+  color: var(--accent);
 }
 
 .app-nav {
@@ -278,24 +302,4 @@ button {
 .flag-btn:hover {
   background: var(--accent-2);
   color: #FFFFFF;
-}
-
-#submitBtn {
-  display: block;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.home-link {
-  position: fixed;
-  top: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-family: 'Quicksand', sans-serif;
-  font-weight: 700;
-  font-size: 1.1rem;
-  color: var(--text);
-  text-decoration: none;
-  letter-spacing: -0.01em;
-  transition: color 0.2s ease;
 }
