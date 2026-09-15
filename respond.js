@@ -85,14 +85,14 @@ async function loadNextPost() {
     const btn = document.createElement("button");
     btn.textContent = option.response_text;
     btn.classList.add("response-btn");
-    btn.addEventListener("click", () => sendResponse(option.response_text));
+    btn.addEventListener("click", () => sendResponse(option.response_text, btn));
     optionsContainer.appendChild(btn);
   });
 }
 
 loadNextPost();
 
-async function sendResponse(responseText) {
+async function sendResponse(responseText, buttonEl) {
   const anonId = getAnonId();
 
   const startOfDay = new Date();
@@ -107,6 +107,10 @@ async function sendResponse(responseText) {
   if (!countError && count >= 50) {
     alert("You've reached today's response limit. Come back tomorrow.");
     return;
+  }
+
+  if (buttonEl) {
+    buttonEl.classList.add("response-btn-selected");
   }
 
   const { error } = await client.from("responses").insert({
@@ -125,8 +129,10 @@ async function sendResponse(responseText) {
     document.activeElement.blur();
   }
 
-  postContainer.classList.add("hidden");
   confirmation.classList.remove("hidden");
 
-  setTimeout(loadNextPost, 600);
+  setTimeout(() => {
+    postContainer.classList.add("hidden");
+    loadNextPost();
+  }, 600);
 }
