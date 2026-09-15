@@ -121,6 +121,10 @@ async function sendResponse(responseText) {
     return;
   }
 
+  if (document.activeElement) {
+    document.activeElement.blur();
+  }
+
   postContainer.classList.add("hidden");
   confirmation.classList.remove("hidden");
 

@@ -177,10 +177,12 @@ button {
   transition: background 0.2s ease, transform 0.15s ease;
 }
 
-.response-btn:hover {
-  background: var(--accent);
-  color: #FFFFFF;
-  transform: translateX(2px);
+@media (hover: hover) {
+  .response-btn:hover {
+    background: var(--accent);
+    color: #FFFFFF;
+    transform: translateX(2px);
+  }
 }
 
 #noPosts {
