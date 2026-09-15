@@ -22,7 +22,8 @@ const noPosts = document.getElementById("noPosts");
 let currentPost = null;
 
 async function loadNextPost() {
-  console.log("loadNextPost started");
+    window.loadCount = (window.loadCount || 0) + 1;
+  console.log("loadNextPost call #", window.loadCount);
   confirmation.classList.add("hidden");
 
   const myAnonId = getAnonId();
