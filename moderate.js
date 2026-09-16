@@ -1,4 +1,4 @@
-const MODERATOR_PASSWORD = "Nmvakrnj12";
+const MODERATOR_PASSWORD = "choose-your-own-password-here";
 
 function checkModeratorAccess() {
   const stored = sessionStorage.getItem("inyeon_mod_access");
@@ -74,7 +74,20 @@ async function loadAllPosts() {
 
     const categorySelect = document.createElement("select");
     categorySelect.classList.add("category-select");
-    ["", "heartbreak", "loneliness", "work_burnout", "anxiety", "general"].forEach(cat => {
+    [
+      "",
+      "heartbreak",
+      "loneliness",
+      "work_burnout",
+      "anxiety",
+      "general",
+      "family_conflict",
+      "grief",
+      "self_doubt",
+      "exam_stress",
+      "financial_stress",
+      "existential_drift"
+    ].forEach(cat => {
       const opt = document.createElement("option");
       opt.value = cat;
       opt.textContent = cat || "Set category...";
