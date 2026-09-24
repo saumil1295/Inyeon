@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inyeon • Profile</title>
+<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<div class="decor-circle decor-circle-tl"></div>
+
+<a href="index.html" class="home-link">Inyeon</a>
+
+<main class="profile-layout">
+
+<section class="profile-card">
+
+<h1>Your profile</h1>
+<p class="subtext">This is the companion others will meet.</p>
+
+<div class="avatar-wrap">
+  <div id="avatarPreview" class="avatar-svg-wrap"></div>
+
+  <button id="editAvatarBtn" class="edit-avatar-btn" type="button">
+    ✎
+  </button>
+</div>
+
+<label for="aliasInput">Alias</label>
+<input id="aliasInput" maxlength="20" placeholder="Choose a name people will know you by">
+<small>This is the only name others will see.</small>
+
+<label for="bioInput">Bio (optional)</label>
+<textarea id="bioInput" maxlength="150" placeholder="A few words about you — nothing that could identify you."></textarea>
+
+<div class="counter">
+<span id="bioCount">0</span>/150
+</div>
+
+<button id="saveProfile" class="primary-btn" type="button">
+Save profile
+</button>
+
+</section>
+
+</main>
+
+<div id="avatarModal" class="avatar-modal hidden">
+
+<div class="avatar-sheet">
+
+<div class="sheet-top">
+<h2>Customize your avatar</h2>
+<button id="closeAvatar" type="button">Done</button>
+</div>
+
+<p>Make it feel like someone you'd like to be.</p>
+
+<div class="editor-preview-wrap">
+  <div id="editorAvatarPreview" class="avatar-svg-wrap editor-preview"></div>
+</div>
+
+<div class="avatar-tabs">
+
+<button class="tab active" data-tab="style" type="button">Style</button>
+<button class="tab" data-tab="hair" type="button">Hair</button>
+<button class="tab" data-tab="face" type="button">Face</button>
+<button class="tab" data-tab="outfit" type="button">Outfit</button>
+
+</div>
+
+<div id="styleTab" class="tab-content active">
+<h3>Skin tone</h3>
+<div class="option-row" id="skinOptions"></div>
+
+<h3>Background</h3>
+<div class="option-row" id="bgOptions"></div>
+</div>
+
+<div id="hairTab" class="tab-content">
+<h3>Hair style</h3>
+<div class="option-row" id="hairOptions"></div>
+
+<h3>Hair colour</h3>
+<div class="option-row" id="hairColourOptions"></div>
+</div>
+
+<div id="faceTab" class="tab-content">
+<h3>Expression</h3>
+<div class="option-row" id="faceOptions"></div>
+</div>
+
+<div id="outfitTab" class="tab-content">
+<h3>Outfit</h3>
+<div class="option-row" id="outfitOptions"></div>
+</div>
+
+</div>
+
+</div>
+
+<nav class="bottom-nav">
+
+<a href="index.html" class="bottom-nav-item">Home</a>
+
+<a href="my-responses.html" class="bottom-nav-item">My Responses</a>
+
+<a href="given-responses.html" class="bottom-nav-item">My Support</a>
+
+</nav>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="profile.js"></script>
+
+</body>
+</html>

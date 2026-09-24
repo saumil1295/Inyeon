@@ -7,10 +7,32 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<div class="decor-circle decor-circle-tl"></div>
+<svg class="decor-leaf decor-leaf-tl" viewBox="0 0 120 200" xmlns="http://www.w3.org/2000/svg">
+  <path d="M60 200 L58 20" stroke="#8A9A7E" stroke-width="2" fill="none"/>
+  <ellipse cx="45" cy="60" rx="18" ry="9" fill="#A3B18A" transform="rotate(-35 45 60)"/>
+  <ellipse cx="72" cy="90" rx="16" ry="8" fill="#8A9A7E" transform="rotate(30 72 90)"/>
+  <ellipse cx="42" cy="120" rx="17" ry="8" fill="#A3B18A" transform="rotate(-30 42 120)"/>
+  <ellipse cx="68" cy="150" rx="15" ry="7" fill="#8A9A7E" transform="rotate(25 68 150)"/>
+</svg>
+
+<svg class="decor-leaf decor-leaf-br" viewBox="0 0 120 200" xmlns="http://www.w3.org/2000/svg">
+  <path d="M60 0 L62 180" stroke="#8A9A7E" stroke-width="2" fill="none"/>
+  <ellipse cx="75" cy="140" rx="18" ry="9" fill="#A3B18A" transform="rotate(35 75 140)"/>
+  <ellipse cx="48" cy="110" rx="16" ry="8" fill="#8A9A7E" transform="rotate(-30 48 110)"/>
+  <ellipse cx="78" cy="80" rx="17" ry="8" fill="#A3B18A" transform="rotate(30 78 80)"/>
+  <ellipse cx="52" cy="50" rx="15" ry="7" fill="#8A9A7E" transform="rotate(-25 52 50)"/>
+</svg>
+  <a href="index.html" class="home-link">Inyeon</a>
   <main>
-    <a href="index.html" class="home-link">Inyeon</a>
     <h1>All Posts</h1>
     <div id="postsList"></div>
+
+    <h1 style="margin-top: 60px;">Pending Responses</h1>
+    <div id="pendingResponsesList"></div>
+
+    <h1 style="margin-top: 60px;">Flagged Conversation Messages</h1>
+    <div id="flaggedMessagesList"></div>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

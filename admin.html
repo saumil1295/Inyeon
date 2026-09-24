@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inyeon Admin</title>
+
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="admin.css">
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="admin.js"></script>
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <header class="top-nav">
+
+    <button id="menuBtn" class="menu-btn">
+      ☰
+    </button>
+
+    <div id="menuDropdown" class="menu-dropdown hidden">
+      <a href="index.html">Community</a>
+      <a href="my-responses.html">My Responses</a>
+      <a href="#" id="menuSignOut">Sign out</a>
+    </div>
+
+  </header>
+
+  <main class="admin-container">
+
+    <!-- Header -->
+    <div class="admin-header">
+
+      <div>
+        <h1>Inyeon Admin</h1>
+        <p>Live health of your support ecosystem</p>
+      </div>
+
+      <div class="live-indicator">
+        <span class="live-dot"></span>
+        LIVE
+      </div>
+
+    </div>
+
+    <!-- Dashboard Grid -->
+    <div class="dashboard-grid">
+
+      <!-- Pending Thoughts -->
+      <div class="card pending-card">
+
+        <span class="metric-label">
+          Pending Thoughts
+        </span>
+
+        <h2 id="pendingCount">0</h2>
+
+      </div>
+
+      <!-- Small Metrics -->
+      <div class="stats-grid">
+
+        <!-- Average AI Time -->
+        <div class="card" id="avgTimeCard">
+
+          <span class="metric-label">
+            Average AI Time
+          </span>
+
+          <h3 id="avgTime">—</h3>
+
+          <p class="metric-subtext" id="avgTimeStatus">
+            Waiting for data
+          </p>
+
+        </div>
+
+        <!-- AI Success Rate -->
+        <div class="card" id="aiSuccessCard">
+
+          <span class="metric-label">
+            AI Success Rate
+          </span>
+
+          <h3 id="aiSuccessRate">100%</h3>
+
+          <p class="metric-subtext" id="aiSuccessStatus">
+            Waiting for data
+          </p>
+
+        </div>
+
+        <div class="card" id="retryDistCard">
+
+  <span class="metric-label">
+    Retry Distribution
+  </span>
+
+  <h3 id="retryDistPrimary">—</h3>
+
+  <p class="metric-subtext" id="retryDistSecondary">
+    Waiting for data
+  </p>
+
+</div>
+
+      </div>
+
+      <!-- Someone Stayed Today -->
+      <div class="card stayed-card" id="stayedCard">
+
+        <span class="metric-label">
+          Someone Stayed Today
+        </span>
+
+        <h3 id="stayedToday">0</h3>
+
+        <p class="metric-subtext" id="stayedStatus">
+          Qualified reading moments
+        </p>
+
+      </div>
+
+      <!-- Pending Queue -->
+      <div class="card queue-card">
+
+        <div class="queue-header">
+
+          <div>
+            <h2>Pending Queue</h2>
+            <span id="queueCount">
+              0 thoughts waiting
+            </span>
+          </div>
+
+        </div>
+
+        <div class="queue-table">
+
+          <div class="queue-table-head">
+            <span>ID</span>
+            <span>Waiting</span>
+            <span>Retries</span>
+            <span>Next Retry</span>
+          </div>
+
+          <div id="queueList">
+            <!-- admin.js injects rows here -->
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+</body>
+</html>

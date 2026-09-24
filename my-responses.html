@@ -7,21 +7,187 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
+  <div class="decor-circle decor-circle-tl"></div>
+
+  <a href="index.html" class="home-link">Inyeon</a>
+
+  <button id="menuBtn" class="menu-btn">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="2" stroke-linecap="round"
+      stroke-linejoin="round">
+      <line x1="3" y1="6" x2="21" y2="6"/>
+      <line x1="3" y1="12" x2="21" y2="12"/>
+      <line x1="3" y1="18" x2="21" y2="18"/>
+    </svg>
+  </button>
+
+  <div id="menuDropdown" class="menu-dropdown hidden">
+    <a href="profile.html" class="menu-item">Profile</a>
+    <a href="#" id="menuSignOut" class="menu-item">Sign out</a>
+  </div>
+
   <main>
-    <a href="index.html" class="home-link">Inyeon</a>
+
     <h1>What you've shared</h1>
 
     <div id="postsList"></div>
-    <p id="emptyState" class="hidden">You haven't posted anything yet.</p>
 
-    <nav class="app-nav">
-  <a href="respond.html">Respond to others</a>
-  <a href="my-responses.html">My responses</a>
-</nav>
+    <p id="emptyState" class="hidden">
+      You haven't posted anything yet.
+    </p>
 
   </main>
 
+  <nav class="bottom-nav">
+
+    <a href="index.html" class="bottom-nav-item">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+      <span>Home</span>
+    </a>
+
+    <a href="my-responses.html" class="bottom-nav-item active">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+      <span>My Responses</span>
+    </a>
+
+    <a href="given-responses.html" class="bottom-nav-item">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2">
+        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06
+        a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78
+        1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+      </svg>
+      <span>My Support</span>
+    </a>
+
+  </nav>
+
+  <!-- Delete Bottom Sheet -->
+
+  <div id="deleteSheet" class="sheet hidden">
+    <div class="sheet-content">
+      <h3>Delete this post?</h3>
+      <p>This removes your post and closes the conversation.</p>
+
+      <button id="confirmDeleteBtn" class="sheet-delete-btn">
+        Delete post
+      </button>
+
+      <button id="cancelDeleteBtn" class="sheet-cancel-btn">
+        Cancel
+      </button>
+    </div>
+  </div>
+
+  <!-- Edit Modal -->
+
+  <div id="editModal" class="edit-overlay hidden">
+    <div class="edit-modal">
+
+      <button id="closeEditModal" class="edit-close">×</button>
+
+      <h2>Edit your post</h2>
+
+      <p id="editTimer" class="edit-timer"></p>
+
+      <textarea id="editTextarea" maxlength="500"></textarea>
+
+      <button id="saveEditBtn" class="edit-save-btn">
+        Save changes
+      </button>
+
+    </div>
+  </div>
+
+  <!-- Report Bottom Sheet -->
+
+  <div id="reportSheet" class="sheet hidden">
+  <div class="sheet-content report-sheet-content">
+
+    <h3>Help us keep this space safe</h3>
+
+    <p class="sheet-subtext">
+      Choose the option that best describes this response.
+    </p>
+
+    <button class="report-option" data-reason="Hurtful or unkind">
+      <span class="report-icon">💬</span>
+      <span class="report-copy">
+        <strong>Hurtful or unkind</strong>
+        <small>Feels attacking, mocking, or dismissive.</small>
+      </span>
+    </button>
+
+    <button class="report-option" data-reason="Unsafe advice">
+      <span class="report-icon">⚠️</span>
+      <span class="report-copy">
+        <strong>Unsafe advice</strong>
+        <small>Encourages harm or dangerous actions.</small>
+      </span>
+    </button>
+
+    <button class="report-option" data-reason="Spam or irrelevant">
+      <span class="report-icon">📢</span>
+      <span class="report-copy">
+        <strong>Spam or irrelevant</strong>
+        <small>Advertising or unrelated content.</small>
+      </span>
+    </button>
+
+    <button class="report-option" data-reason="Doesn't feel genuine">
+      <span class="report-icon">🌫️</span>
+      <span class="report-copy">
+        <strong>Doesn't feel genuine</strong>
+        <small>Looks like trolling or isn't trying to help.</small>
+      </span>
+    </button>
+
+    <button class="report-option report-other" type="button">
+      <span class="report-icon">•••</span>
+      <span class="report-copy">
+        <strong>Something else</strong>
+        <small>Tell us what happened.</small>
+      </span>
+    </button>
+
+    <div id="reportOtherBox" class="report-other-box hidden">
+      <textarea
+        id="reportOtherText"
+        maxlength="300"
+        placeholder="Tell us what happened..."
+      ></textarea>
+
+      <div class="report-other-footer">
+        <span id="reportOtherCount">0/300</span>
+
+        <button
+          id="submitOtherReport"
+          class="report-submit-btn"
+          disabled
+          type="button"
+        >
+          Submit report
+        </button>
+      </div>
+    </div>
+
+    <button id="closeReportSheet" class="sheet-cancel-btn" type="button">
+      Cancel
+    </button>
+
+  </div>
+</div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="my-responses.js"></script>
+
 </body>
 </html>

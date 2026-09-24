@@ -6,26 +6,190 @@
   <title>Inyeon</title>
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
+
+  <div class="decor-circle decor-circle-tl"></div>
+
+  <svg class="decor-leaf decor-leaf-tl" viewBox="0 0 120 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M60 200 L58 20" stroke="#8A9A7E" stroke-width="2" fill="none"/>
+    <ellipse cx="45" cy="60" rx="18" ry="9" fill="#A3B18A" transform="rotate(-35 45 60)"/>
+    <ellipse cx="72" cy="90" rx="16" ry="8" fill="#8A9A7E" transform="rotate(30 72 90)"/>
+    <ellipse cx="42" cy="120" rx="17" ry="8" fill="#A3B18A" transform="rotate(-30 42 120)"/>
+    <ellipse cx="68" cy="150" rx="15" ry="7" fill="#8A9A7E" transform="rotate(25 68 150)"/>
+  </svg>
+
+  <svg class="decor-leaf decor-leaf-br" viewBox="0 0 120 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M60 0 L62 180" stroke="#8A9A7E" stroke-width="2" fill="none"/>
+    <ellipse cx="75" cy="140" rx="18" ry="9" fill="#A3B18A" transform="rotate(35 75 140)"/>
+    <ellipse cx="48" cy="110" rx="16" ry="8" fill="#8A9A7E" transform="rotate(-30 48 110)"/>
+    <ellipse cx="78" cy="80" rx="17" ry="8" fill="#A3B18A" transform="rotate(30 78 80)"/>
+    <ellipse cx="52" cy="50" rx="15" ry="7" fill="#8A9A7E" transform="rotate(-25 52 50)"/>
+  </svg>
+
+  <a href="index.html" class="home-link">Inyeon</a>
+
+  <button id="menuBtn" class="menu-btn">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <line x1="3" y1="6" x2="21" y2="6"/>
+      <line x1="3" y1="12" x2="21" y2="12"/>
+      <line x1="3" y1="18" x2="21" y2="18"/>
+    </svg>
+  </button>
+
+  <div id="menuDropdown" class="menu-dropdown hidden">
+    <a href="profile.html" class="menu-item">Profile</a>
+    <a href="#" id="menuSignOut" class="menu-item">Sign out</a>
+  </div>
+
   <main>
-    <a href="index.html" class="home-link">Inyeon</a>
-    <h1>What's on your mind?</h1>
-    <p class="subtext">"Anonymous. No profile. Share what's on your mind, or respond to someone else who has."</p>
 
-    <textarea id="postText" placeholder="Say as much or as little as you want..."></textarea>
-    <button id="submitBtn">Post</button>
+    <div id="choiceStep">
 
-    <p id="confirmation" class="hidden">This is out there now.</p>
+      <h1 id="greeting">Hi!</h1>
+      <p class="subtext">What would you like to do?</p>
 
-    <nav class="app-nav">
-  <a href="respond.html">Respond to others</a>
-  <a href="my-responses.html">My responses</a>
-</nav>
+      <div class="choice-grid">
+
+        <button id="shareChoiceBtn" class="choice-card">
+          <span class="choice-title">Share how you're feeling</span>
+          <span class="choice-desc">
+            Post something on your mind, anonymously to others.
+          </span>
+        </button>
+
+        <button id="supportChoiceBtn" class="choice-card">
+          <span class="choice-title">Be there for someone else</span>
+          <span class="choice-desc">
+            Respond to someone who needs to be heard.
+          </span>
+        </button>
+
+      </div>
+
+    </div>
+
+    <div id="postStep" class="hidden">
+
+      <h1>What's on your mind?</h1>
+
+      <p class="subtext">
+        Anonymous. No profile. Just a place to be honest.
+      </p>
+
+      <div class="compose-box">
+  <textarea
+    id="postText"
+    placeholder="Say as much or as little as you want..."
+    maxlength="500"></textarea>
+
+  <p id="charCount" class="char-count">0 / 500</p>
+</div>
+
+      <button id="submitBtn">Post</button>
+
+      <p id="confirmation" class="hidden">This is out there now.</p>
+
+    </div>
 
   </main>
 
-  <!-- Supabase client library -->
+  <nav class="bottom-nav">
+
+    <a href="index.html" class="bottom-nav-item active">
+      <svg width="22" height="22" viewBox="0 0 24 24"
+           fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+      <span>Home</span>
+    </a>
+
+    <a href="my-responses.html" class="bottom-nav-item">
+      <svg width="22" height="22" viewBox="0 0 24 24"
+           fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+      <span>My Responses</span>
+    </a>
+
+    <a href="given-responses.html" class="bottom-nav-item">
+      <svg width="22" height="22" viewBox="0 0 24 24"
+           fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+      </svg>
+      <span>My Support</span>
+    </a>
+
+  </nav>
+
+  <!-- ========================= -->
+  <!-- Inyeon Moment Modal -->
+  <!-- ========================= -->
+
+  <div id="inyeonMomentOverlay" class="inyeon-overlay hidden">
+
+    <div class="inyeon-modal">
+
+      <button id="closeInyeonMoment" class="inyeon-close">×</button>
+
+      <div class="inyeon-illustration">
+
+        <div class="inyeon-halo"></div>
+
+        <svg viewBox="0 0 200 200" class="leaf-svg">
+          <path d="M100 165 C95 135 98 110 115 75 C130 45 145 35 150 28
+                   C138 30 118 45 103 72 C93 92 90 112 100 165"
+                fill="none"
+                stroke="#8DA187"
+                stroke-width="3"
+                stroke-linecap="round"/>
+
+          <path d="M115 75 C140 82 148 58 148 28"
+                fill="#A8B49D" opacity="0.9"/>
+
+          <path d="M98 105 C75 95 70 120 82 138"
+                fill="#B8C3AE" opacity="0.85"/>
+
+          <path d="M106 120 C132 130 130 154 112 170"
+                fill="#C8D1BF" opacity="0.8"/>
+        </svg>
+
+      </div>
+
+      <h2>Your words are no longer being carried alone.</h2>
+
+      <p class="inyeon-copy">
+        Take a breath. When you're ready, you can hold space for someone else's story.
+      </p>
+
+      <button id="holdSpaceBtn" class="inyeon-primary">
+        Hold space for someone →
+      </button>
+
+      <button id="maybeLaterBtn" class="inyeon-secondary">
+        Maybe later
+      </button>
+
+      <div class="inyeon-footer">
+
+        <div class="infinity">∞</div>
+
+        <div>
+          <h4>Inyeon</h4>
+          <p>Sometimes being heard is the beginning. Sometimes listening is.</p>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="app.js"></script>
+
 </body>
 </html>

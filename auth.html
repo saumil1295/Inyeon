@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inyeon — Sign In</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="decor-circle decor-circle-tl"></div>
+  <a href="index.html" class="home-link">Inyeon</a>
+
+  <main>
+    <div id="authStep">
+      <h1 id="authHeading">Welcome back</h1>
+      <p class="subtext" id="authSubtext">Sign in to continue.</p>
+
+      <div id="nameFields" class="hidden">
+        <input type="text" id="firstNameInput" placeholder="First name" class="auth-input" />
+        <input type="text" id="lastNameInput" placeholder="Last name" class="auth-input" style="margin-top: 14px;" />
+      </div>
+
+      <input type="email" id="emailInput" placeholder="Email" class="auth-input" style="margin-top: 14px;" />
+      <input type="password" id="passwordInput" placeholder="Password" class="auth-input" style="margin-top: 14px;" />
+      <p id="passwordHint" class="subtext hidden" style="font-size: 0.8rem; margin-top: 8px; margin-bottom: 0;">At least 8 characters, including one letter and one number.</p>
+
+      <input type="password" id="confirmPasswordInput" placeholder="Confirm password" class="auth-input hidden" style="margin-top: 14px;" />
+
+      <button id="primaryActionBtn" class="auth-submit-btn">Sign in</button>
+
+      <p class="subtext" id="toggleModeLink" style="margin-top: 16px; cursor: pointer; text-decoration: underline;">
+        New here? Create an account
+      </p>
+    </div>
+
+    <div id="checkEmailStep" class="hidden">
+      <h1>Check your email</h1>
+      <p class="subtext">Click the link we sent to confirm your account, then come back and sign in.</p>
+    </div>
+
+    <div id="aliasStep" class="hidden">
+  <h1>Pick an alias</h1>
+  <p class="subtext">This is how others will see you — not your real name unless you want it to be.</p>
+  <input type="text" id="aliasInput" placeholder="e.g. Varun, Quiet Wanderer..." class="auth-input" />
+
+  <p class="subtext" style="margin-top: 20px; margin-bottom: 10px; text-align: left;">Choose a color</p>
+  <div id="avatarColorGrid" class="avatar-color-grid"></div>
+
+  <div id="avatarPreview" class="avatar-preview">
+    <div id="avatarPreviewCircle" class="avatar-circle">?</div>
+  </div>
+
+  <textarea id="bioInput" placeholder="A few words about you — nothing that could identify you (optional)" class="auth-input" style="height: 80px; padding-top: 16px; margin-top: 16px;" maxlength="150"></textarea>
+  <p id="bioCount" class="char-count">0/150</p>
+
+  <p id="aliasError" class="subtext hidden" style="color: var(--accent);"></p>
+  <button id="saveAliasBtn" class="auth-submit-btn">Continue</button>
+  </div>
+
+    <p id="authMessage" class="subtext hidden"></p>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="auth.js"></script>
+</body>
+</html>
