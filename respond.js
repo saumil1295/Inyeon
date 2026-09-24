@@ -8,11 +8,31 @@ const params = new URLSearchParams(window.location.search);
 
 const selectedCategory = params.get("category");
 
+const momentType =
+  selectedCategory === "difficult"
+    ? "support"
+    : "celebrate";
+
 // Keep draft support
 const draftPostId = params.get("post");
 
 document.getElementById("menuBtn").addEventListener("click", () => {
   document.getElementById("menuDropdown").classList.toggle("hidden");
+});
+
+window.addEventListener("DOMContentLoaded", () => {
+  const title = document.querySelector("h1");
+  const subtitle = document.querySelector(".subtext");
+
+  if (!title || !subtitle) return;
+
+  if (selectedCategory === "difficult") {
+    title.textContent = "Heavier moments";
+    subtitle.textContent = "Stepping into someone's difficult day.";
+  } else {
+    title.textContent = "Lighter moments";
+    subtitle.textContent = "Something gentle is waiting.";
+  }
 });
 
 document.getElementById("menuSignOut").addEventListener("click", async (e) => {
@@ -384,7 +404,7 @@ async function fetchNextPost() {
       if (!blockedUserIds.includes(data.anon_id)) {
         return {
           post: data,
-          options: optionsByCategory[data.need_category] || []
+          options: optionsByCategory[data.moment_type] || []
         };
       }
 
@@ -398,9 +418,9 @@ let query = client
   .from("posts")
   .select("*")
   .eq("status","active")
+  .eq("moment_type", momentType)
   .is("deleted_at",null)
   .neq("anon_id",currentUser.id)
-  .eq("need_category", selectedCategory)   // ← ADD THIS LINE HERE
   .order("created_at",{ascending:true})
   .limit(1);
 
@@ -430,9 +450,9 @@ let query = client
   .from("posts")
   .select("*")
   .eq("status","active")
+  .eq("moment_type", momentType)
   .is("deleted_at",null)
   .neq("anon_id",currentUser.id)
-  .eq("need_category", selectedCategory)
   .order("created_at",{ascending:true})
   .limit(1);
 
@@ -458,7 +478,7 @@ const post = posts[0];
 
 return {
   post,
-  options: optionsByCategory[post.need_category] || []
+  options: optionsByCategory[momentType] || []
 };
 
 } // <-- Add this closing brace

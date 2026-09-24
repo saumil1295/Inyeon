@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Choose a Category • Inyeon</title>
+
+<title>Choose a Moment • Inyeon</title>
 
 <link rel="stylesheet" href="style.css">
 </head>
@@ -12,80 +13,71 @@
 
 <div class="decor-circle decor-circle-tl"></div>
 
+<div class="decor-leaf decor-leaf-tr">
+  <svg viewBox="0 0 180 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M90 10C135 55 150 115 135 180C118 150 95 120 60 95C72 65 82 38 90 10Z"
+      fill="currentColor" opacity=".28"/>
+    <path d="M118 58C155 95 168 145 150 205C130 170 105 138 70 112"
+      stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+  </svg>
+</div>
+
 <a href="index.html" class="home-link">Inyeon</a>
 
 <main>
 
   <div class="category-header">
-    <h1>What feels easiest to hold today?</h1>
+
+    <h1>What kind of moment are you looking for today?</h1>
 
     <p class="subtext">
-      You don't have to carry every story.
-      Start with one you're ready to listen to.
+      Choose the kind of story you have space to hold right now.
     </p>
+
   </div>
 
-  <div class="category-columns">
+  <div class="category-columns two-choice">
 
-    <div class="category-group">
+    <!-- Heavier -->
 
-      <h3>Difficult feelings</h3>
+    <button class="emotion-card moment-card heavy" data-category="difficult">
 
-      <button class="emotion-card" data-category="Overwhelmed">
-        🌊 <span>Overwhelmed</span>
-      </button>
+      <div class="moment-icon">🌊</div>
 
-      <button class="emotion-card" data-category="Anxious">
-        🌙 <span>Anxious</span>
-      </button>
+      <div class="moment-content">
+        <h3>Heavier moments</h3>
+        <p>When you're carrying something that feels hard to hold.</p>
+      </div>
 
-      <button class="emotion-card" data-category="Lonely">
-        ☁️ <span>Lonely</span>
-      </button>
+      <span class="moment-arrow">›</span>
 
-      <button class="emotion-card" data-category="Hurt">
-        💔 <span>Hurt</span>
-      </button>
+    </button>
 
-      <button class="emotion-card" data-category="Frustrated">
-        😤 <span>Frustrated</span>
-      </button>
+    <!-- Lighter -->
 
-    </div>
+    <button class="emotion-card moment-card light" data-category="lighter">
 
-    <div class="category-group">
+      <div class="moment-icon">🍃</div>
 
-      <h3>Lighter feelings</h3>
+      <div class="moment-content">
+        <h3>Lighter moments</h3>
+        <p>When you're noticing hope, gratitude, relief, or small wins.</p>
+      </div>
 
-      <button class="emotion-card" data-category="Calm">
-        🍃 <span>Calm</span>
-      </button>
+      <span class="moment-arrow">›</span>
 
-      <button class="emotion-card" data-category="Settled">
-        🌿 <span>Settled</span>
-      </button>
-
-      <button class="emotion-card" data-category="Optimistic">
-        ✨ <span>Optimistic</span>
-      </button>
-
-      <button class="emotion-card" data-category="Uplifted">
-        ☀️ <span>Uplifted</span>
-      </button>
-
-      <button class="emotion-card" data-category="Grateful">
-        💛 <span>Grateful</span>
-      </button>
-
-    </div>
+    </button>
 
   </div>
 
 </main>
 
 <nav class="bottom-nav">
+
   <a href="index.html" class="bottom-nav-item active">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round">
       <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
       <polyline points="9 22 9 12 15 12 15 22"/>
     </svg>
@@ -93,37 +85,95 @@
   </a>
 
   <a href="my-responses.html" class="bottom-nav-item">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round">
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
     </svg>
     <span>My Responses</span>
   </a>
 
   <a href="given-responses.html" class="bottom-nav-item">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round">
       <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
     </svg>
     <span>My Support</span>
   </a>
+
 </nav>
 
+<!-- ==========================
+     Full-screen Category Transition
+========================== -->
+
+<div id="categoryTransition" class="category-transition">
+
+  <div class="transition-center">
+
+    <div id="transitionIcon" class="transition-icon">🌊</div>
+
+    <h2 id="transitionText">
+      Stepping into someone's difficult day.
+    </h2>
+
+  </div>
+
+</div>
+
 <script>
+
+const overlay = document.getElementById("categoryTransition");
+const transitionText = document.getElementById("transitionText");
+const transitionIcon = document.getElementById("transitionIcon");
+
 document.querySelectorAll(".emotion-card").forEach(card => {
+
   card.addEventListener("click", () => {
-
-    document.querySelectorAll(".emotion-card")
-      .forEach(c => c.classList.remove("selected"));
-
-    card.classList.add("selected");
 
     const category = card.dataset.category;
 
+    if (category === "difficult") {
+
+      overlay.classList.add("heavy-mode");
+      overlay.classList.remove("light-mode");
+
+      transitionIcon.textContent = "🌊";
+      transitionText.textContent = "Stepping into someone's difficult day.";
+
+    } else {
+
+      overlay.classList.add("light-mode");
+      overlay.classList.remove("heavy-mode");
+
+      transitionIcon.textContent = "🍃";
+      transitionText.textContent = "Something gentle is waiting.";
+
+    }
+
+    overlay.classList.add("show");
+
     setTimeout(() => {
+
       window.location.href =
         `respond.html?category=${encodeURIComponent(category)}`;
-    }, 180);
+
+    }, 350);
 
   });
+
+});
+
+</script>
+
+<script>
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted) {
+    // Reset any transition overlays when returning via Back
+    const overlay = document.getElementById("categoryTransition");
+    overlay?.classList.remove("show", "heavy-mode", "light-mode");
+  }
 });
 </script>
 

@@ -49,6 +49,7 @@
     <div id="choiceStep">
 
       <h1 id="greeting">Hi!</h1>
+
       <p class="subtext">What would you like to do?</p>
 
       <div class="choice-grid">
@@ -80,13 +81,13 @@
       </p>
 
       <div class="compose-box">
-  <textarea
-    id="postText"
-    placeholder="Say as much or as little as you want..."
-    maxlength="500"></textarea>
+        <textarea
+          id="postText"
+          placeholder="Say as much or as little as you want..."
+          maxlength="500"></textarea>
 
-  <p id="charCount" class="char-count">0 / 500</p>
-</div>
+        <p id="charCount" class="char-count">0 / 500</p>
+      </div>
 
       <button id="submitBtn">Post</button>
 
@@ -125,9 +126,7 @@
 
   </nav>
 
-  <!-- ========================= -->
-  <!-- Inyeon Moment Modal -->
-  <!-- ========================= -->
+  <!-- Existing Post Confirmation Modal -->
 
   <div id="inyeonMomentOverlay" class="inyeon-overlay hidden">
 
@@ -188,8 +187,73 @@
 
   </div>
 
+  <!-- NEW Full-screen Inyeon Moment -->
+
+  <div id="supportMomentOverlay" class="support-moment-overlay">
+
+    <div class="support-moment-center">
+
+      <div class="support-rings">
+
+        <div class="ring ring1"></div>
+        <div class="ring ring2"></div>
+        <div class="ring ring3"></div>
+
+        <div class="support-leaf">
+
+          <svg viewBox="0 0 140 140" fill="none">
+
+            <circle cx="70" cy="70" r="52" fill="#EEF3EA"/>
+
+            <path
+              d="M70 28C92 48 97 82 82 112C67 93 53 71 45 52C55 42 63 35 70 28Z"
+              fill="#6FA37A"/>
+
+            <path
+              d="M70 40L70 104"
+              stroke="#4F7F63"
+              stroke-width="3"
+              stroke-linecap="round"/>
+
+          </svg>
+
+        </div>
+
+      </div>
+
+      <h2>The Inyeon Moment</h2>
+
+      <p>Holding space begins with choosing to listen.</p>
+
+    </div>
+
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="app.js"></script>
+
+  <!-- Replace the support button behavior after app.js loads -->
+
+  <script>
+
+    const supportBtn = document.getElementById("supportChoiceBtn");
+const supportOverlay = document.getElementById("supportMomentOverlay");
+
+supportBtn.addEventListener("click", (e) => {
+
+  e.preventDefault();
+
+  supportOverlay.classList.add("show");
+
+  setTimeout(() => {
+
+    window.location.href = "category-select.html";
+
+  }, 700);
+
+});
+
+  </script>
 
 </body>
 </html>

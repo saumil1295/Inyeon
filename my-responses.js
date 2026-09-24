@@ -442,6 +442,17 @@ async function loadPosts() {
 
   emptyState.classList.add("hidden");
 
+    // ---------- Existing acknowledgments ----------
+
+  const { data: acknowledgments } = await client
+    .from("response_acknowledgments")
+    .select("response_id")
+    .eq("poster_id", currentUser.id);
+
+  const acknowledgedResponses = new Set(
+    (acknowledgments || []).map(a => a.response_id)
+  );
+
   for (const post of posts) {
 
     const card = document.createElement("div");
@@ -686,6 +697,59 @@ card.appendChild(header);
       });
 
       card.appendChild(btn);
+    }
+
+        // ---------- Acknowledge without replying ----------
+
+    if (
+      !conversation &&
+      visibleResponses[0].response_type === "written"
+    ) {
+
+      if (!acknowledgedResponses.has(visibleResponses[0].id)) {
+
+        const acknowledgeBtn = document.createElement("button");
+        acknowledgeBtn.className = "acknowledge-btn";
+        acknowledgeBtn.textContent = "🌿 Let them know it stayed with you";
+
+        acknowledgeBtn.addEventListener("click", async () => {
+
+          acknowledgeBtn.disabled = true;
+
+          const { error } = await client
+            .from("response_acknowledgments")
+            .insert({
+              response_id: visibleResponses[0].id,
+              poster_id: currentUser.id,
+              responder_id: visibleResponses[0].responder_anon_id
+            });
+
+          if (error) {
+            console.error(error);
+            acknowledgeBtn.disabled = false;
+            return;
+          }
+
+          acknowledgeBtn.outerHTML = `
+            <div class="acknowledged-state">
+              🌿 They know it reached you.
+            </div>
+          `;
+
+        });
+
+        card.appendChild(acknowledgeBtn);
+
+      } else {
+
+        const acknowledged = document.createElement("div");
+        acknowledged.className = "acknowledged-state";
+        acknowledged.textContent = "🌿 They know it reached you.";
+
+        card.appendChild(acknowledged);
+
+      }
+
     }
 
     postsList.appendChild(card);

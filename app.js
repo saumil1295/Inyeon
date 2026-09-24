@@ -1,3 +1,4 @@
+
 const SUPABASE_URL = "https://fjgshtktadaddwmshugw.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZqZ3NodGt0YWRhZGR3bXNodWd3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzNzEzODQsImV4cCI6MjEwNDk0NzM4NH0.fMUzZ2chICrxSvRVdwrEb9TseFY532kC2KtsvV_zpGM";
 
@@ -5,7 +6,7 @@ const { createClient } = supabase;
 const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 /* -----------------------------
-   INYEON MOMENT MODAL
+   INYEON MOMENT MODAL (after posting)
 ----------------------------- */
 
 const inyeonOverlay = document.getElementById("inyeonMomentOverlay");
@@ -15,14 +16,12 @@ const closeInyeonMoment = document.getElementById("closeInyeonMoment");
 
 function openInyeonMoment() {
   if (!inyeonOverlay) return;
-
   inyeonOverlay.classList.remove("hidden");
   document.body.style.overflow = "hidden";
 }
 
 function closeInyeonMomentModal() {
   if (!inyeonOverlay) return;
-
   inyeonOverlay.classList.add("hidden");
   document.body.style.overflow = "";
 }
@@ -30,8 +29,10 @@ function closeInyeonMomentModal() {
 closeInyeonMoment?.addEventListener("click", closeInyeonMomentModal);
 maybeLaterBtn?.addEventListener("click", closeInyeonMomentModal);
 
+/* Updated: Hold space now goes to category select */
+
 holdSpaceBtn?.addEventListener("click", () => {
-  window.location.href = "respond.html";
+  window.location.href = "category-select.html";
 });
 
 inyeonOverlay?.addEventListener("click", (e) => {
@@ -95,6 +96,10 @@ async function requireAuth() {
   return true;
 }
 
+/* -----------------------------
+   CRISIS DETECTION
+----------------------------- */
+
 function detectCrisis(text) {
   const lower = text.toLowerCase();
 
@@ -137,13 +142,32 @@ postText.addEventListener("input", () => {
   charCount.classList.toggle("char-count-warning", used >= 450);
 });
 
+/* Share flow */
+
 document.getElementById("shareChoiceBtn").addEventListener("click", () => {
   choiceStep.classList.add("hidden");
   postStep.classList.remove("hidden");
 });
 
-document.getElementById("supportChoiceBtn").addEventListener("click", () => {
-  window.location.href = "category-select.html";
+/* -----------------------------
+   NEW SUPPORT FLOW
+----------------------------- */
+
+const supportChoiceBtn = document.getElementById("supportChoiceBtn");
+const supportMomentOverlay = document.getElementById("supportMomentOverlay");
+
+supportChoiceBtn?.addEventListener("click", (e) => {
+
+  e.preventDefault();
+
+  supportMomentOverlay.classList.add("show");
+
+  setTimeout(() => {
+
+    window.location.href = "category-select.html";
+
+  }, 700);
+
 });
 
 /* -----------------------------
@@ -178,6 +202,7 @@ function showLimitReachedMessage() {
 ----------------------------- */
 
 submitBtn.addEventListener("click", async () => {
+
   const text = postText.value.trim();
   if (!text) return;
 
@@ -196,15 +221,15 @@ submitBtn.addEventListener("click", async () => {
   const isCrisis = detectCrisis(text);
 
   const { data: post, error } = await client
-  .from("posts")
-  .insert({
-    content: text,
-    anon_id: currentUser.id,
-    moment_type: "pending",
-    status: isCrisis ? "flagged" : "active"
-  })
-  .select("id")
-  .single();
+    .from("posts")
+    .insert({
+      content: text,
+      anon_id: currentUser.id,
+      moment_type: "pending",
+      status: isCrisis ? "flagged" : "active"
+    })
+    .select("id")
+    .single();
 
   console.log("POST INSERT:", { post, error });
 
@@ -230,6 +255,7 @@ submitBtn.addEventListener("click", async () => {
   setTimeout(() => {
     openInyeonMoment();
   }, 250);
+
 });
 
 /* -----------------------------
@@ -237,10 +263,12 @@ submitBtn.addEventListener("click", async () => {
 ----------------------------- */
 
 async function init() {
+
   const authed = await requireAuth();
   if (!authed) return;
 
   greeting.textContent = `Hi, ${currentProfile.alias}!`;
+
 }
 
 init();
