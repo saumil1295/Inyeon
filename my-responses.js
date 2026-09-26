@@ -440,18 +440,39 @@ async function loadPosts() {
     return;
   }
 
-  emptyState.classList.add("hidden");
+    emptyState.classList.add("hidden");
 
-    // ---------- Existing acknowledgments ----------
+  // ---------- Existing acknowledgments ----------
 
   const { data: acknowledgments } = await client
-    .from("response_acknowledgments")
-    .select("response_id")
-    .eq("poster_id", currentUser.id);
+  .from("response_acknowledgments")
+  .select("response_id")
+  .eq("poster_id", currentUser.id);
 
-  const acknowledgedResponses = new Set(
-    (acknowledgments || []).map(a => a.response_id)
+const acknowledgedResponses = new Set(
+  (acknowledgments || []).map(a => a.response_id)
+);
+
+// Get all post IDs that have at least one response
+const { data: respondedRows, error: respondedError } = await client
+  .from("responses")
+  .select("post_id")
+  .in("post_id", posts.map(p => p.id));
+
+if (!respondedError && respondedRows) {
+  const respondedPostIds = new Set(
+    respondedRows.map(r => r.post_id)
   );
+
+  posts.sort((a, b) => {
+    const aHas = respondedPostIds.has(a.id);
+    const bHas = respondedPostIds.has(b.id);
+
+    if (aHas !== bHas) return aHas ? -1 : 1;
+
+    return new Date(b.created_at) - new Date(a.created_at);
+  });
+}
 
   for (const post of posts) {
 
@@ -601,7 +622,7 @@ if (visibleResponses[0].response_type === "written") {
     const reportBtn = document.createElement("button");
     reportBtn.className = "response-menu-btn";
     reportBtn.dataset.postId = post.id;
-    reportBtn.textContent = "⋯";
+    reportBtn.innerHTML = "⋮";
 
     reportBtn.addEventListener("click", (e) => {
   e.stopPropagation();
@@ -632,135 +653,140 @@ card.appendChild(header);
 
     card.appendChild(firstResponse);
 
-    const { data: conversation } = await client
-      .from("conversations")
-      .select("id")
-      .eq("post_id", post.id)
-      .eq("responder_id", visibleResponses[0].responder_anon_id)
-      .maybeSingle();
+          const { data: conversation } = await client
+        .from("conversations")
+        .select("id")
+        .eq("post_id", post.id)
+        .eq("responder_id", visibleResponses[0].responder_anon_id)
+        .maybeSingle();
 
-    if (conversation) {
+        let hasMessages = false;
 
-      const { data: messages } = await client
-        .from("conversation_messages")
-        .select("message_text,sender_id,created_at")
-        .eq("conversation_id", conversation.id)
-        .order("created_at", { ascending: true });
+if (conversation) {
+  const { count } = await client
+    .from("conversation_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("conversation_id", conversation.id);
 
-      if (messages?.length) {
+  hasMessages = count > 0;
+}
 
-        const preview = document.createElement("div");
-        preview.className = "conversation-preview";
+      // Show preview only if a conversation already exists
+      if (conversation) {
 
-        const visible =
-          messages.length <= 4
-            ? messages
-            : messages.slice(-4);
+        const { data: messages } = await client
+          .from("conversation_messages")
+          .select("message_text,sender_id,created_at")
+          .eq("conversation_id", conversation.id)
+          .order("created_at", { ascending: true });
 
-        if (messages.length > 4) {
+        if (messages?.length) {
 
-          const earlier = document.createElement("div");
-          earlier.className = "conversation-earlier";
-          earlier.textContent = "Earlier messages…";
+          const preview = document.createElement("div");
+          preview.className = "conversation-preview";
 
-          preview.appendChild(earlier);
-        }
+          const visible =
+            messages.length <= 4 ? messages : messages.slice(-4);
 
-        visible.forEach(msg => {
-
-          const isMe = msg.sender_id === currentUser.id;
-
-          const row = document.createElement("div");
-          row.className = `preview-row ${isMe ? "preview-you" : "preview-them"}`;
-
-          const sender = document.createElement("div");
-          sender.className = "preview-sender";
-          sender.textContent = isMe ? "You" : responder.alias;
-
-          const bubble = document.createElement("div");
-          bubble.className = `preview-bubble ${isMe ? "bubble-you" : "bubble-them"}`;
-          bubble.textContent = msg.message_text;
-
-          row.append(sender, bubble);
-          preview.appendChild(row);
-        });
-
-        card.appendChild(preview);
-      }
-
-      const btn = document.createElement("button");
-      btn.className = "conversation-btn";
-      btn.textContent = "Continue conversation →";
-
-      btn.addEventListener("click", () => {
-        location.href = `conversation.html?conversation_id=${conversation.id}`;
-      });
-
-      card.appendChild(btn);
-    }
-
-        // ---------- Acknowledge without replying ----------
-
-    if (
-      !conversation &&
-      visibleResponses[0].response_type === "written"
-    ) {
-
-      if (!acknowledgedResponses.has(visibleResponses[0].id)) {
-
-        const acknowledgeBtn = document.createElement("button");
-        acknowledgeBtn.className = "acknowledge-btn";
-        acknowledgeBtn.textContent = "🌿 Let them know it stayed with you";
-
-        acknowledgeBtn.addEventListener("click", async () => {
-
-          acknowledgeBtn.disabled = true;
-
-          const { error } = await client
-            .from("response_acknowledgments")
-            .insert({
-              response_id: visibleResponses[0].id,
-              poster_id: currentUser.id,
-              responder_id: visibleResponses[0].responder_anon_id
-            });
-
-          if (error) {
-            console.error(error);
-            acknowledgeBtn.disabled = false;
-            return;
+          if (messages.length > 4) {
+            const earlier = document.createElement("div");
+            earlier.className = "conversation-earlier";
+            earlier.textContent = "Earlier messages…";
+            preview.appendChild(earlier);
           }
 
-          acknowledgeBtn.outerHTML = `
-            <div class="acknowledged-state">
-              🌿 They know it reached you.
-            </div>
-          `;
+          visible.forEach(msg => {
+            const isMe = msg.sender_id === currentUser.id;
 
-        });
+            const row = document.createElement("div");
+            row.className = `preview-row ${isMe ? "preview-you" : "preview-them"}`;
 
-        card.appendChild(acknowledgeBtn);
+            const sender = document.createElement("div");
+            sender.className = "preview-sender";
+            sender.textContent = isMe ? "You" : responder.alias;
 
-      } else {
+            const bubble = document.createElement("div");
+            bubble.className = `preview-bubble ${isMe ? "bubble-you" : "bubble-them"}`;
+            bubble.textContent = msg.message_text;
 
-        const acknowledged = document.createElement("div");
-        acknowledged.className = "acknowledged-state";
-        acknowledged.textContent = "🌿 They know it reached you.";
+            row.append(sender, bubble);
+            preview.appendChild(row);
+          });
 
-        card.appendChild(acknowledged);
-
+          card.appendChild(preview);
+        }
       }
 
-    }
+      // Action buttons should ALWAYS appear
+      const actions = document.createElement("div");
+      actions.className = "reply-actions";
 
-    postsList.appendChild(card);
+      const continueBtn = document.createElement("button");
+      continueBtn.className = "conversation-btn pressable";
+      continueBtn.textContent =
+  conversation && hasMessages
+    ? "Continue conversation →"
+    : "Open Conversation →";
+
+      continueBtn.addEventListener("click", () => {
+        if (conversation) {
+          location.href = `conversation.html?conversation_id=${conversation.id}`;
+        } else {
+          location.href = `conversation.html?post=${post.id}&responder=${visibleResponses[0].responder_anon_id}`;
+        }
+      });
+
+      actions.appendChild(continueBtn);
+
+      const receivedBtn = document.createElement("button");
+      receivedBtn.className = `received-btn pressable${
+        acknowledgedResponses.has(visibleResponses[0].id)
+          ? " acknowledged"
+          : ""
+      }`;
+
+      receivedBtn.textContent = acknowledgedResponses.has(visibleResponses[0].id)
+        ? "Received ✓"
+        : "Received";
+
+      receivedBtn.addEventListener("click", async () => {
+
+        if (acknowledgedResponses.has(visibleResponses[0].id)) return;
+
+        receivedBtn.disabled = true;
+
+        const { error } = await client
+          .from("response_acknowledgments")
+          .insert({
+            response_id: visibleResponses[0].id,
+            poster_id: currentUser.id,
+            responder_id: visibleResponses[0].responder_anon_id
+          });
+
+        if (error) {
+          console.error(error);
+          receivedBtn.disabled = false;
+          return;
+        }
+
+        acknowledgedResponses.add(visibleResponses[0].id);
+        receivedBtn.classList.add("acknowledged");
+        receivedBtn.textContent = "Received ✓";
+      });
+
+      actions.appendChild(receivedBtn);
+card.appendChild(actions);
+
+postsList.appendChild(card);
+    }
   }
-}
 
 // Close the 3-dot menu when clicking elsewhere
 document.addEventListener("click", e => {
   if (
     !e.target.closest(".post-popup-menu") &&
-    !e.target.closest(".post-menu-btn")
+    !e.target.closest(".post-menu-btn") &&
+    !e.target.closest(".response-menu-btn")
   ) {
     document.querySelectorAll(".post-popup-menu").forEach(m => m.remove());
   }

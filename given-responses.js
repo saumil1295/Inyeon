@@ -124,6 +124,23 @@ function getStayedMessage(count) {
 const givenList = document.getElementById("givenList");
 const emptyState = document.getElementById("emptyState");
 
+const conversationsView = document.getElementById("conversationsView");
+const savedView = document.getElementById("savedView");
+
+const conversationsTab = document.getElementById("conversationsTab");
+const savedTab = document.getElementById("savedTab");
+
+const savedList = document.getElementById("savedList");
+const savedEmptyState = document.getElementById("savedEmptyState");
+
+const unsaveModal = document.getElementById("unsaveModal");
+const confirmUnsave = document.getElementById("confirmUnsave");
+const cancelUnsave = document.getElementById("cancelUnsave");
+
+let postToUnsave = null;
+
+let currentSupportTab = "conversations";
+
 /* -----------------------------
    Load Responses
 ----------------------------- */
@@ -228,9 +245,9 @@ if (visibleDrafts.length) {
           }
         </p>
 
-        <button class="continue-btn draft-continue-btn">
-          Continue writing →
-        </button>
+        <button class="continue-btn draft-continue-btn pressable">
+  Continue writing →
+</button>
       `;
 
       card.querySelector(".draft-continue-btn")
@@ -418,17 +435,6 @@ if (visibleDrafts.length) {
 
         }
 
-        const continueBtn = document.createElement("button");
-        continueBtn.classList.add("continue-btn");
-        continueBtn.textContent = "Continue conversation →";
-
-        continueBtn.addEventListener("click", () => {
-          window.location.href =
-            `conversation.html?conversation_id=${convo.id}`;
-        });
-
-        card.appendChild(continueBtn);
-
       }
 
     }
@@ -440,22 +446,277 @@ if (visibleDrafts.length) {
 }
 
 /* -----------------------------
+   Load Saved Posts
+----------------------------- */
+
+async function loadSavedPosts(){
+
+  const { data, error } = await client
+    .from("saved_posts")
+    .select(`
+      created_at,
+      posts(
+        id,
+        content,
+        created_at,
+        profiles(alias, avatar_color)
+      )
+    `)
+    .eq("user_id", currentUser.id)
+    .order("created_at",{ ascending:false });
+
+  if(error){
+    console.error(error);
+    return;
+  }
+
+  savedList.innerHTML = "";
+
+const newlySavedPostId = sessionStorage.getItem("newlySavedPostId");
+
+  if(!data?.length){
+
+  savedEmptyState.classList.remove("hidden");
+  savedEmptyState.classList.remove("fade-in");
+
+  requestAnimationFrame(() => {
+    savedEmptyState.classList.add("fade-in");
+  });
+
+  return;
+
+}
+
+  savedEmptyState.classList.add("hidden");
+savedEmptyState.classList.remove("fade-in");
+
+  data.forEach(item=>{
+
+    const card=document.createElement("div");
+    card.className="shared-card";
+
+if (!item.posts) return;
+
+    card.innerHTML = `
+  <div class="shared-card-top">
+
+    <span class="shared-date">${formatPostDate(item.created_at)}</span>
+
+    <button type="button"
+        class="saved-bookmark-btn pressable"
+        data-post="${item.posts.id}"
+        aria-label="Remove from Saved">
+
+      <svg width="20"
+           height="20"
+           viewBox="0 0 24 24"
+           fill="currentColor"
+           stroke="currentColor"
+           stroke-width="2"
+           stroke-linecap="round"
+           stroke-linejoin="round">
+
+        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+
+      </svg>
+
+    </button>
+
+  </div>
+
+  <p class="shared-post-text">
+    ${item.posts?.content || "A saved post"}
+  </p>
+
+  <button class="continue-btn saved-respond-btn pressable"
+        data-post="${item.posts.id}">
+  Pick up where you left off →
+</button>
+`;
+
+    savedList.appendChild(card);
+
+if (String(item.posts.id) === newlySavedPostId) {
+  card.querySelector(".saved-bookmark-btn")?.classList.add("newly-saved");
+  sessionStorage.removeItem("newlySavedPostId");
+}
+
+  });
+
+}
+
+function showConversations(){
+
+  currentSupportTab = "conversations";
+
+  conversationsView.classList.remove("hidden");
+  savedView.classList.add("hidden");
+
+  conversationsTab.classList.add("active");
+  savedTab.classList.remove("active");
+
+}
+
+function showSaved(){
+
+  currentSupportTab = "saved";
+
+  conversationsView.classList.add("hidden");
+  savedView.classList.remove("hidden");
+
+  conversationsTab.classList.remove("active");
+  savedTab.classList.add("active");
+
+}
+
+conversationsTab?.addEventListener("click", showConversations);
+savedTab?.addEventListener("click", async()=>{
+
+  showSaved();
+  await loadSavedPosts();
+
+});
+
+document.addEventListener("click", e => {
+
+  const btn = e.target.closest(".saved-respond-btn");
+
+  if (!btn) return;
+
+  e.preventDefault();
+
+  const card = btn.closest(".shared-card");
+  card?.classList.add("lifting");
+
+  // View Transitions API
+  if ("startViewTransition" in document) {
+
+    card.style.viewTransitionName = "inyeon-card";
+
+    document.startViewTransition(() => {
+      window.location.href = `respond.html?post=${btn.dataset.post}`;
+    });
+
+  } else {
+
+    // Fallback
+    setTimeout(() => {
+      window.location.href = `respond.html?post=${btn.dataset.post}`;
+    },160);
+
+  }
+
+});
+
+document.addEventListener("click", e => {
+
+  const bookmark = e.target.closest(".saved-bookmark-btn");
+
+  if (!bookmark) return;
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  postToUnsave = bookmark.dataset.post;
+
+  unsaveModal.classList.remove("hidden");
+
+});
+
+cancelUnsave.onclick = () => {
+
+  postToUnsave = null;
+  unsaveModal.classList.add("hidden");
+
+};
+
+unsaveModal.onclick = (e) => {
+  if (e.target === unsaveModal) cancelUnsave.onclick();
+};
+
+
+confirmUnsave.onclick = async () => {
+
+  if (!postToUnsave) return;
+
+  const bookmarkBtn = document.querySelector(
+    `.saved-bookmark-btn[data-post="${postToUnsave}"]`
+  );
+
+  const card = bookmarkBtn?.closest(".shared-card");
+
+  unsaveModal.classList.add("hidden");
+
+  bookmarkBtn?.classList.add("removing");
+
+  if (card) {
+
+    // Lock the current height
+    card.style.height = card.offsetHeight + "px";
+
+    // Force the browser to acknowledge that height
+    requestAnimationFrame(() => {
+      card.classList.add("removing");
+    });
+
+  }
+
+  await new Promise(resolve => setTimeout(resolve, 320));
+
+  await client
+    .from("saved_posts")
+    .delete()
+    .eq("user_id", currentUser.id)
+    .eq("post_id", postToUnsave);
+
+  card?.remove();
+
+  postToUnsave = null;
+
+  if (!savedList.querySelector(".shared-card")) {
+
+    savedEmptyState.classList.remove("hidden");
+    savedEmptyState.classList.remove("fade-in");
+
+    requestAnimationFrame(() => {
+      savedEmptyState.classList.add("fade-in");
+    });
+
+  }
+
+};
+
+/* -----------------------------
    Init
 ----------------------------- */
 
-async function init() {
-  const authed = await requireAuth();
-  if (!authed) return;
+async function init(){
+
+  const authed=await requireAuth();
+  if(!authed) return;
 
   await loadGivenResponses();
+  await loadSavedPosts();
 
-  // Refresh when returning to this tab after blocking someone.
-  document.addEventListener("visibilitychange", async () => {
-    if (!document.hidden) {
-      await requireAuth();        // Reload blockedUserIds
-      await loadGivenResponses(); // Re-render immediately
+  if (currentSupportTab === "saved") {
+  showSaved();
+} else {
+  showConversations();
+}
+
+  document.addEventListener("visibilitychange",async()=>{
+
+    if(!document.hidden){
+
+      await requireAuth();
+
+      await loadGivenResponses();
+      await loadSavedPosts();
+
     }
+
   });
+
 }
 
 init();

@@ -33,11 +33,15 @@ async function requireAuth() {
   return true;
 }
 
-function getConversationIdFromUrl() {
+function getConversationParams() {
   const params = new URLSearchParams(window.location.search);
-  return params.get("conversation_id");
-}
 
+  return {
+    conversationId: params.get("conversation_id"),
+    postId: params.get("post"),
+    responderId: params.get("responder")
+  };
+}
 async function loadConversation() {
   const { data: convo, error } = await client
     .from("conversations")
@@ -77,6 +81,38 @@ async function loadConversation() {
   }
 
   await renderMessages();
+}
+
+async function ensureConversation(postId, responderId) {
+
+  const { data: existing } = await client
+    .from("conversations")
+    .select("id")
+    .eq("post_id", postId)
+    .eq("responder_id", responderId)
+    .maybeSingle();
+
+  if (existing) {
+    conversationId = existing.id;
+    return;
+  }
+
+  const { data: created, error } = await client
+    .from("conversations")
+    .insert({
+      post_id: Number(postId),
+      poster_id: currentUser.id,
+      responder_id: responderId
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    console.error(error);
+    throw error;
+  }
+
+  conversationId = created.id;
 }
 
 async function renderMessages() {
@@ -195,13 +231,18 @@ async function init() {
   const authed = await requireAuth();
   if (!authed) return;
 
-  conversationId = getConversationIdFromUrl();
-  if (!conversationId) {
-    document.getElementById("loadingState").textContent = "No conversation specified.";
-    return;
-  }
+  const { conversationId: urlConversationId, postId, responderId } = getConversationParams();
 
-  await loadConversation();
+if (urlConversationId) {
+  conversationId = urlConversationId;
+} else if (postId && responderId) {
+  await ensureConversation(postId, responderId);
+} else {
+  document.getElementById("loadingState").textContent = "No conversation specified.";
+  return;
+}
+
+await loadConversation();
 }
 
 init();

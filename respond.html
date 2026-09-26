@@ -16,7 +16,7 @@
   
 </head>
 
-<body class="respond-page">
+<body class="respond-page page-transition">
 
   <!-- Decorative Background -->
   <div class="bg-circle"></div>
@@ -96,14 +96,34 @@
     </section>
 
     <!-- Response Card -->
-    <section id="postContainer" class="response-card">
+    <section id="postContainer"
+         class="response-card"
+         style="view-transition-name: inyeon-card;">
 
       <div class="card-accent left"></div>
 <div class="card-accent right"></div>
 
 <div id="responseContent" class="response-content">
-  <h2 id="postText" class="quote-title skeleton-text">Loading…</h2>
+
+  <div class="post-header">
+    <div class="post-header-spacer"></div>
+
+    <h2 id="postText" class="quote-title skeleton-text">Loading…</h2>
+
+    <button id="saveBtn" class="bookmark-btn pressable" aria-label="Save post">
+      <svg id="saveIcon" width="20" height="20" viewBox="0 0 24 24"
+           fill="none"
+           stroke="currentColor"
+           stroke-width="2"
+           stroke-linecap="round"
+           stroke-linejoin="round">
+        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+      </svg>
+    </button>
+  </div>
+
   <div id="optionsContainer"></div>
+
 </div>
 
     </section>
@@ -151,7 +171,7 @@
         They'll only know someone chose to be here.
       </p>
 
-      <button id="nextPostBtn" class="next-post-btn">
+      <button id="nextPostBtn" class="next-post-btn pressable">
         Next post →
       </button>
 
@@ -162,7 +182,7 @@
   <!-- Bottom Navigation -->
   <nav id="bottomNav" class="bottom-nav">
 
-  <a href="index.html#compose" class="bottom-nav-item active">
+  <a href="index.html#compose" class="bottom-nav-item">
     <!-- Pen icon -->
     <svg width="22" height="22" viewBox="0 0 24 24"
          fill="none" stroke="currentColor" stroke-width="2">
@@ -203,6 +223,8 @@
   </a>
 
 </nav>
+
+<div id="toast" class="toast hidden"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="respond.js"></script>

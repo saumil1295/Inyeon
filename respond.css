@@ -241,6 +241,7 @@ box-shadow:0 10px 30px rgba(34,50,37,.04);
   transition:
     opacity .18s ease,
     transform .18s ease;
+    position: relative;
 }
 
 .response-card.switching{
@@ -294,6 +295,8 @@ color:var(--text);
 
 margin-bottom:24px;
 
+padding-right: 56px;
+
 }
 
 /* ---------- Card Content Transition ---------- */
@@ -302,6 +305,7 @@ margin-bottom:24px;
   transition:
     opacity .24s ease,
     transform .24s ease;
+    padding-top: 8px;
 }
 
 .response-content.exiting{
@@ -789,4 +793,117 @@ font-size:2rem;
     transform:translateY(0) scale(1);
   }
 
+}
+
+/* ---------- Post Header ---------- */
+
+.post-header{
+  display:grid;
+  grid-template-columns:20px 1fr 20px;
+  align-items:start;
+  margin-bottom:8px;
+}
+
+.post-header-spacer{
+  width:20px;
+  height:20px;
+}
+
+.quote-title{
+  margin:0;
+  text-align:center;
+  padding:0;
+}
+
+/* ---------- Bookmark ---------- */
+
+.post-header{
+  display:grid;
+  grid-template-columns:32px 1fr 32px;
+  align-items:start;
+  margin-bottom:8px;
+}
+
+.post-header-spacer{
+  width:32px;
+  height:32px;
+}
+
+.bookmark-btn{
+  width:32px;
+  height:32px;
+
+  margin-top:-6px;
+  margin-right:-6px;
+
+  border:none;
+  border-radius:999px;
+  background:transparent;
+  color:var(--text);
+
+  display:flex;
+  align-items:center;
+  justify-content:center;
+
+  cursor:pointer;
+  transition:.2s ease;
+
+  position:relative;
+  z-index:10;
+  pointer-events:auto;
+}
+
+.bookmark-btn:hover{
+  background:rgba(0,0,0,.05);
+}
+
+.bookmark-btn.saved{
+  background:#111;
+  color:#fff;
+  animation:bookmarkPop .15s ease;
+}
+
+.bookmark-btn.saved svg{
+  fill:currentColor;
+}
+
+@keyframes bookmarkPop{
+  0%{transform:scale(.9);}
+  60%{transform:scale(1.12);}
+  100%{transform:scale(1);}
+}
+
+/* ---------- Toast ---------- */
+
+.toast{
+  position:fixed;
+  left:50%;
+  bottom:92px;
+  transform:translateX(-50%);
+  background:#111;
+  color:#fff;
+  padding:12px 18px;
+  border-radius:999px;
+  font-size:14px;
+  z-index:1000;
+  opacity:1;
+  transition:.25s ease;
+}
+
+.toast.hidden{
+  opacity:0;
+  pointer-events:none;
+  transform:translateX(-50%) translateY(12px);
+}
+
+.bookmark-btn.saved{
+  background:#111;
+  color:#fff;
+  animation:bookmarkPop .15s ease;
+}
+
+@keyframes bookmarkPop{
+  0%{transform:scale(.9);}
+  60%{transform:scale(1.12);}
+  100%{transform:scale(1);}
 }

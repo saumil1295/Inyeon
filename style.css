@@ -1164,16 +1164,11 @@ body {
 }
 
 .conversation-btn{
-
-  width:100%;
-  margin-top:18px;
-  border:none;
-  border-radius:999px;
-  padding:16px;
-  background:var(--text);
-  color:white;
-  font-weight:700;
-  font-size:.95rem;
+  height:48px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  margin:0;
 }
 
 .conversation-btn:hover{
@@ -1305,8 +1300,19 @@ body {
 }
 
 .conversation-btn{
-  width:100%;
-  margin-top:18px;
+  flex:1;
+  height:48px;
+  margin:0;
+  border:none;
+  border-radius:999px;
+  background:var(--text);
+  color:#fff;
+  font-weight:700;
+  font-size:.95rem;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
 }
 
 .mini-avatar{
@@ -4021,4 +4027,604 @@ margin:24px 0;
     transform:scale(1);
   }
 
+}
+
+/* ---------- My Support Tabs ---------- */
+
+.support-tabs{
+  display:flex;
+  gap:8px;
+  margin:20px 0 24px;
+}
+
+.support-tab{
+  flex:1;
+  padding:12px 16px;
+  border:none;
+  border-radius:999px;
+  background:#F3EEE5;
+  color:var(--muted);
+  font-weight:600;
+  cursor:pointer;
+  transition:.2s ease;
+}
+
+.support-tab.active{
+  background:#111;
+  color:#fff;
+}
+
+/* ---------- Saved Bookmark ---------- */
+
+.saved-bookmark-btn{
+  width:36px;
+  height:36px;
+  border:none;
+  border-radius:999px;
+  background:#111;
+  color:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  transition:.2s ease;
+}
+
+.saved-bookmark-btn:hover{
+  transform:scale(1.05);
+}
+
+/* ---------- Confirmation Modal ---------- */
+
+.modal{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.35);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index:1000;
+}
+
+.modal.hidden{
+  display:none;
+}
+
+.modal-card{
+  width:min(340px,90%);
+  background:#F8F5EF;
+  border-radius:28px;
+  padding:28px;
+  text-align:center;
+}
+
+.modal-card h3{
+  margin:0 0 10px;
+}
+
+.modal-card p{
+  margin:0;
+  color:var(--muted);
+}
+
+.modal-actions{
+  display:flex;
+  gap:12px;
+  margin-top:24px;
+}
+
+.modal-actions button{
+  flex:1;
+}
+
+/* ==========================================================
+   SAVED PAGE BOOKMARK + UNSAVE MODAL
+========================================================== */
+
+/* ---------- Saved Bookmark ---------- */
+
+.saved-bookmark-btn{
+  width:36px;
+  height:36px;
+  border:none;
+  border-radius:999px;
+  background:#111;
+  color:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  transition:transform .2s ease, background .2s ease;
+  flex-shrink:0;
+}
+
+.saved-bookmark-btn:hover{
+  transform:scale(1.05);
+}
+
+/* ---------- Unsave Modal ---------- */
+
+.modal{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.35);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:24px;
+  z-index:9999;
+}
+
+.modal.hidden{
+  display:none;
+}
+
+.modal-card{
+  width:100%;
+  max-width:360px;
+  background:var(--surface);
+  border-radius:28px;
+  padding:28px;
+  text-align:center;
+  box-shadow:0 20px 50px rgba(0,0,0,.12);
+}
+
+.modal-card h3{
+  margin:0 0 10px;
+  font-family:'Quicksand', sans-serif;
+  font-size:1.35rem;
+  color:var(--text);
+}
+
+.modal-card p{
+  margin:0;
+  color:var(--text-muted);
+  line-height:1.5;
+}
+
+.modal-actions{
+  display:flex;
+  gap:12px;
+  margin-top:24px;
+}
+
+.modal-actions button{
+  flex:1;
+}
+
+.secondary-btn{
+  border:1.5px solid var(--border);
+  background:var(--surface);
+  color:var(--text);
+  border-radius:999px;
+  padding:14px;
+  font-weight:600;
+}
+
+.secondary-btn:hover{
+  background:var(--surface-2);
+}
+
+.primary-btn{
+  border:none;
+  background:var(--text);
+  color:#fff;
+  border-radius:999px;
+  padding:14px;
+  font-weight:700;
+}
+
+.primary-btn:hover{
+  background:#2A2825;
+}
+
+/* ==========================================================
+   SAVED CARD REMOVE ANIMATION
+========================================================== */
+
+.saved-bookmark-btn.removing{
+  animation:savedBookmarkPop .24s ease;
+}
+
+@keyframes savedBookmarkPop{
+  0%{transform:scale(1);}
+  50%{transform:scale(.82);}
+  100%{transform:scale(1);}
+}
+
+.shared-card{
+  overflow:hidden;
+  transition:
+    height .32s cubic-bezier(.22,1,.36,1),
+    margin .32s cubic-bezier(.22,1,.36,1),
+    padding .32s cubic-bezier(.22,1,.36,1),
+    opacity .24s ease,
+    transform .24s ease;
+}
+
+.shared-card.removing{
+  height:0 !important;
+  opacity:0;
+  transform:translateY(-4px);
+  margin-top:0;
+  margin-bottom:0;
+  padding-top:0;
+  padding-bottom:0;
+  pointer-events:none;
+}
+
+/* ==========================================================
+   NEW SAVED BOOKMARK ANIMATION
+========================================================== */
+
+.saved-bookmark-btn.newly-saved{
+  animation:newSavedBookmark .32s cubic-bezier(.22,1,.36,1);
+}
+
+@keyframes newSavedBookmark{
+  0%{
+    opacity:0;
+    transform:scale(.72);
+  }
+  60%{
+    opacity:1;
+    transform:scale(1.12);
+  }
+  100%{
+    opacity:1;
+    transform:scale(1);
+  }
+}
+
+/* ==========================================================
+   SAVED EMPTY STATE FADE
+========================================================== */
+
+#savedEmptyState{
+  text-align:center;
+  color:var(--text-muted);
+  line-height:1.6;
+  padding:36px 20px;
+}
+
+#savedEmptyState strong{
+  display:block;
+  color:var(--text);
+  font-size:1.05rem;
+  margin-bottom:6px;
+}
+
+#savedEmptyState.fade-in{
+  animation:emptyStateFade .32s ease forwards;
+}
+
+@keyframes emptyStateFade{
+  from{
+    opacity:0;
+    transform:translateY(8px);
+  }
+  to{
+    opacity:1;
+    transform:translateY(0);
+  }
+}
+
+/* ==========================================================
+   PAGE TRANSITION
+========================================================== */
+
+.shared-card{
+  transform-origin:center;
+}
+
+.shared-card.lifting{
+  transform:scale(1.015) translateY(-2px);
+  transition:transform .16s cubic-bezier(.22,1,.36,1);
+}
+
+/* ==========================================================
+   VIEW TRANSITION
+========================================================== */
+
+.shared-card{
+  transform-origin:center;
+}
+
+.shared-card.lifting{
+  transform:scale(1.015) translateY(-2px);
+  transition:transform .18s cubic-bezier(.22,1,.36,1);
+}
+
+/* Shared element animation */
+
+::view-transition-old(inyeon-card),
+::view-transition-new(inyeon-card){
+  animation-duration:.28s;
+  animation-timing-function:cubic-bezier(.22,1,.36,1);
+  mix-blend-mode:normal;
+}
+
+/* Enable cross-document View Transitions (Chrome) */
+@view-transition{
+  navigation:auto;
+}
+
+::view-transition-old(inyeon-card),
+::view-transition-new(inyeon-card){
+  animation-duration:.28s;
+  animation-timing-function:cubic-bezier(.22,1,.36,1);
+}
+
+/* ==========================================================
+   UNIVERSAL PRESS INTERACTION
+========================================================== */
+
+.pressable{
+  transition:
+    transform .12s cubic-bezier(.22,1,.36,1),
+    opacity .12s ease;
+  -webkit-tap-highlight-color: transparent;
+  transform-origin:center;
+  will-change:transform;
+}
+
+.pressable:active{
+  transform:scale(.97);
+}
+
+.pressable:focus-visible{
+  outline:none;
+  box-shadow:0 0 0 3px rgba(127,168,149,.18);
+}
+
+/* ==========================================================
+   RECEIVED BUTTON
+========================================================== */
+
+.reply-actions{
+  display:flex;
+  align-items:stretch;
+  gap:12px;
+  margin-top:18px;
+}
+
+.reply-actions .conversation-btn,
+.reply-actions .received-btn{
+  flex:1;
+  height:48px;
+  margin:0;
+  align-self:stretch;
+}
+
+.reply-actions .conversation-btn{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.reply-actions .received-btn{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.received-btn{
+  border:1.5px solid var(--border);
+  background:var(--surface);
+  color:var(--text);
+  border-radius:999px;
+  padding:14px;
+  font-weight:600;
+  transition:
+    background .18s ease,
+    color .18s ease,
+    border-color .18s ease,
+    transform .12s cubic-bezier(.22,1,.36,1);
+}
+
+.received-btn.acknowledged{
+  background:#7FA895;
+  border-color:#7FA895;
+  color:#fff;
+}
+
+/* ==========================================================
+   RESPONSE MENU
+========================================================== */
+
+.response-menu-btn{
+  margin-left:auto;
+  width:32px;
+  height:32px;
+  border:none;
+  background:transparent;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  color:var(--text-muted);
+  transition:
+    background .18s ease,
+    transform .12s cubic-bezier(.22,1,.36,1);
+}
+
+.response-menu-btn:hover{
+  background:#F4EFE6;
+}
+
+.response-menu-btn:active{
+  transform:scale(.94);
+}
+
+/* ==========================================================
+   REPLY ACTIONS
+========================================================== */
+
+.reply-actions{
+  display:flex;
+  gap:12px;
+  margin-top:18px;
+}
+
+.reply-actions button{
+  flex:1;
+}
+
+/* ==========================================================
+   RECEIVED BUTTON
+========================================================== */
+
+.received-btn{
+  flex:1;
+  height:48px;
+  margin:0;
+  border:1.5px solid var(--border);
+  background:var(--surface);
+  color:var(--text);
+  border-radius:999px;
+  font-size:.95rem;
+  font-weight:600;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  transition:
+    background .18s ease,
+    color .18s ease,
+    border-color .18s ease,
+    transform .12s cubic-bezier(.22,1,.36,1);
+}
+
+.received-btn:hover{
+  background:var(--surface-2);
+}
+
+.received-btn.acknowledged{
+  background:#7FA895;
+  border-color:#7FA895;
+  color:white;
+}
+
+/* ==========================================================
+   UNIVERSAL PRESS INTERACTION
+========================================================== */
+
+.pressable{
+  transition:
+    transform .12s cubic-bezier(.22,1,.36,1),
+    opacity .12s ease;
+  -webkit-tap-highlight-color:transparent;
+  transform-origin:center;
+  will-change:transform;
+}
+
+.pressable:active{
+  transform:scale(.97);
+}
+
+.pressable:focus-visible{
+  outline:none;
+  box-shadow:0 0 0 3px rgba(127,168,149,.18);
+}
+
+/* ==========================================================
+   REPORT BOTTOM SHEET
+========================================================== */
+
+.report-sheet{
+  position:fixed;
+  left:0;
+  right:0;
+  bottom:0;
+  background:var(--surface);
+  border-radius:32px 32px 0 0;
+  padding:28px 24px calc(28px + env(safe-area-inset-bottom));
+  box-shadow:0 -16px 40px rgba(0,0,0,.12);
+  z-index:2000;
+  animation:sheetUp .24s cubic-bezier(.22,1,.36,1);
+}
+
+.report-sheet::before{
+  content:"";
+  display:block;
+  width:44px;
+  height:5px;
+  border-radius:999px;
+  background:#D8D1C6;
+  margin:0 auto 20px;
+}
+
+.report-title{
+  margin:0 0 8px;
+  font-size:1.45rem;
+  font-weight:700;
+}
+
+.report-subtitle{
+  margin:0 0 24px;
+  color:var(--text-muted);
+  line-height:1.5;
+}
+
+.report-options{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+
+.report-option{
+  width:100%;
+  display:flex;
+  align-items:flex-start;
+  gap:12px;
+  border:1px solid var(--border);
+  background:var(--surface);
+  border-radius:18px;
+  padding:16px;
+  cursor:pointer;
+  transition:
+    background .18s ease,
+    transform .12s ease;
+}
+
+.report-option:hover{
+  background:var(--surface-2);
+}
+
+.report-option:active{
+  transform:scale(.98);
+}
+
+.report-option .icon{
+  font-size:18px;
+  margin-top:2px;
+}
+
+.report-option .text{
+  flex:1;
+}
+
+.report-option .text strong{
+  display:block;
+  margin-bottom:3px;
+}
+
+.report-option .text span{
+  font-size:.9rem;
+  color:var(--text-muted);
+}
+
+.report-cancel{
+  width:100%;
+  border:none;
+  background:transparent;
+  padding:18px 0 6px;
+  font-weight:600;
+  cursor:pointer;
+}
+
+@keyframes sheetUp{
+  from{ transform:translateY(100%); }
+  to{ transform:translateY(0); }
 }

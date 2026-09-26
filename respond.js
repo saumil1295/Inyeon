@@ -4,6 +4,12 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const { createClient } = supabase;
 const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// Allow the View Transition destination to settle cleanly
+requestAnimationFrame(() => {
+  const card = document.getElementById("postContainer");
+  if (card) card.style.viewTransitionName = "inyeon-card";
+});
+
 const params = new URLSearchParams(window.location.search);
 
 /* -----------------------------
@@ -172,6 +178,12 @@ const postTextEl = document.getElementById("postText");
 const optionsContainer = document.getElementById("optionsContainer");
 const confirmation = document.getElementById("confirmation");
 const noPosts = document.getElementById("noPosts");
+
+const saveBtn = document.getElementById("saveBtn");
+let currentPostSaved = false;
+
+const toast = document.getElementById("toast");
+let toastTimer = null;
 
 let currentPost = null;
 
@@ -680,14 +692,100 @@ return {
 }
 
 /* -----------------------------
+   Save Posts
+----------------------------- */
+
+async function updateSaveState(postId){
+
+  const { data } = await client
+    .from("saved_posts")
+    .select("id")
+    .eq("user_id", currentUser.id)
+    .eq("post_id", postId)
+    .maybeSingle();
+
+  currentPostSaved = !!data;
+
+  saveBtn?.classList.toggle("saved", currentPostSaved);
+
+}
+
+function showToast(message){
+
+  clearTimeout(toastTimer);
+
+  toast.textContent = message;
+  toast.classList.remove("hidden");
+
+  toastTimer = setTimeout(()=>{
+    toast.classList.add("hidden");
+  },1500);
+
+}
+
+async function toggleSave(){
+
+  if(!currentPost) return;
+
+  const wasSaved = currentPostSaved;
+
+  currentPostSaved = !wasSaved;
+  saveBtn.classList.toggle("saved", currentPostSaved);
+
+  if(currentPostSaved){
+
+    const { error } = await client
+      .from("saved_posts")
+      .insert({
+        user_id: currentUser.id,
+        post_id: currentPost.id
+      });
+
+    if(error){
+
+  currentPostSaved = false;
+  saveBtn.classList.remove("saved");
+
+}else{
+
+  sessionStorage.setItem("newlySavedPostId", currentPost.id);
+  showToast("Saved for later");
+
+}
+
+  }else{
+
+    const { error } = await client
+      .from("saved_posts")
+      .delete()
+      .eq("user_id", currentUser.id)
+      .eq("post_id", currentPost.id);
+
+    if(error){
+
+  currentPostSaved = true;
+  saveBtn.classList.add("saved");
+
+}else{
+
+  showToast("Removed from Saved");
+
+}
+
+  }
+
+}
+
+/* -----------------------------
    Render post
 ----------------------------- */
 
 function displayPost(post, options) {
 
-  currentPost = post;
+ currentPost = post;
 categoryState[selectedCategory].currentPost = post;
 rememberPost(post.id);
+updateSaveState(post.id);
 
   postContainer.style.pointerEvents = "auto";
 
@@ -756,6 +854,8 @@ rememberPost(post.id);
       Skip
     </button>
   `;
+
+  saveBtn.onclick = toggleSave;
 
   const input = document.getElementById("responseInput");
   const counter = document.getElementById("charCount");

@@ -37,14 +37,37 @@
   </div>
 
   <main>
-    <h1>What you've given</h1>
+  <h1>My Support</h1>
+
+  <div class="support-tabs">
+    <button id="conversationsTab" class="support-tab active">
+      Conversations
+    </button>
+
+    <button id="savedTab" class="support-tab">
+      Saved
+    </button>
+  </div>
+
+  <div id="conversationsView">
     <div id="givenList"></div>
-    <p id="emptyState" class="hidden">You haven't responded to anyone yet.</p>
-  </main>
+    <p id="emptyState" class="hidden">
+      You haven't responded to anyone yet.
+    </p>
+  </div>
+
+  <div id="savedView" class="hidden">
+    <div id="savedList"></div>
+    <p id="savedEmptyState" class="hidden">
+  <strong>A quiet shelf.</strong><br>
+  The stories you save will wait for you here.
+</p>
+  </div>
+</main>
 
   <nav id="bottomNav" class="bottom-nav">
 
-  <a href="index.html#compose" class="bottom-nav-item">
+  <a href="index.html#compose" class="bottom-nav-item pressable">
     <!-- Pen icon -->
     <svg width="22" height="22" viewBox="0 0 24 24"
          fill="none" stroke="currentColor" stroke-width="2">
@@ -54,7 +77,7 @@
     <span>Post</span>
   </a>
 
-  <a href="category-select.html" class="bottom-nav-item">
+  <a href="category-select.html" class="bottom-nav-item pressable">
     <!-- Heart handshake -->
     <svg width="22" height="22" viewBox="0 0 24 24"
          fill="none" stroke="currentColor" stroke-width="2"
@@ -66,7 +89,7 @@
     <span>Listen</span>
   </a>
 
-  <a href="my-responses.html" class="bottom-nav-item">
+  <a href="my-responses.html" class="bottom-nav-item pressable">
     <!-- Message -->
     <svg width="22" height="22" viewBox="0 0 24 24"
          fill="none" stroke="currentColor" stroke-width="2">
@@ -75,7 +98,7 @@
     <span>Responses</span>
   </a>
 
-  <a href="given-responses.html" class="bottom-nav-item active">
+  <a href="given-responses.html" class="bottom-nav-item active pressable">
     <!-- Heart -->
     <svg width="22" height="22" viewBox="0 0 24 24"
          fill="none" stroke="currentColor" stroke-width="2">
@@ -85,6 +108,28 @@
   </a>
 
 </nav>
+
+<div id="unsaveModal" class="modal hidden">
+  <div class="modal-card">
+
+    <h3>Let this story go?</h3>
+
+    <p>You can always save another story later.</p>
+
+    <div class="modal-actions">
+
+      <button id="cancelUnsave" class="secondary-btn">
+        Keep it
+      </button>
+
+      <button id="confirmUnsave" class="primary-btn">
+        Remove
+      </button>
+
+    </div>
+
+  </div>
+</div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="given-responses.js"></script>
