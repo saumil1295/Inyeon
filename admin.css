@@ -708,7 +708,7 @@ body:has(.admin-container) main{
 }
 
 .stayed-message::before{
-  content:"✦";
+  content:"âœ¦";
   color:#D6B970;
   font-size:14px;
 }
@@ -777,4 +777,50 @@ body:has(.admin-container) main{
   padding:26px 14px;
   color:#8B93A7;
   text-align:center;
+}
+
+/* ---------- New AI Health Cards ---------- */
+
+#providerCard,#confidenceCard{
+  position:relative;
+  overflow:hidden;
+  transition:.25s ease;
+}
+
+#providerCard::before,#confidenceCard::before{
+  content:"";
+  position:absolute;
+  left:0;top:0;bottom:0;
+  width:4px;
+  border-radius:4px;
+  background:#6EE7B7;
+}
+
+#providerCard h3,#confidenceCard h3{
+  font-variant-numeric:tabular-nums;
+}
+
+/* AI Health Cards */
+
+#providerCard,
+#confidenceCard{
+  position:relative;
+  overflow:hidden;
+}
+
+#providerCard::before,
+#confidenceCard::before{
+  content:"";
+  position:absolute;
+  left:0;
+  top:0;
+  bottom:0;
+  width:4px;
+  border-radius:4px;
+  background:#6EE7B7;
+}
+
+#providerCard h3,
+#confidenceCard h3{
+  font-variant-numeric:tabular-nums;
 }

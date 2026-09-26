@@ -145,8 +145,17 @@ postText.addEventListener("input", () => {
 /* Share flow */
 
 document.getElementById("shareChoiceBtn").addEventListener("click", () => {
+
+  // Don't create duplicate history entries
+  if (window.location.hash !== "#compose") {
+    history.pushState({ screen: "compose" }, "", "#compose");
+  }
+
   choiceStep.classList.add("hidden");
   postStep.classList.remove("hidden");
+
+  document.getElementById("bottomNav").classList.remove("hidden");
+
 });
 
 /* -----------------------------
@@ -167,6 +176,28 @@ supportChoiceBtn?.addEventListener("click", (e) => {
     window.location.href = "category-select.html";
 
   }, 700);
+
+});
+
+/* -----------------------------
+   Browser Back Support
+----------------------------- */
+
+window.addEventListener("popstate", (e) => {
+
+  if (window.location.hash === "#compose") {
+
+  choiceStep.classList.add("hidden");
+  postStep.classList.remove("hidden");
+  document.getElementById("bottomNav").classList.remove("hidden");
+
+} else {
+
+  choiceStep.classList.remove("hidden");
+  postStep.classList.add("hidden");
+  document.getElementById("bottomNav").classList.add("hidden");
+
+}
 
 });
 
@@ -269,6 +300,27 @@ async function init() {
 
   greeting.textContent = `Hi, ${currentProfile.alias}!`;
 
+  if (window.location.hash === "#compose") {
+
+    history.replaceState({ screen: "compose" }, "", "#compose");
+
+    choiceStep.classList.add("hidden");
+postStep.classList.remove("hidden");
+document.getElementById("bottomNav").classList.remove("hidden");
+
+setTimeout(() => postText?.focus(), 50);
+
+  } else {
+
+    history.replaceState({ screen: "choice" }, "", window.location.pathname);
+
+    choiceStep.classList.remove("hidden");
+postStep.classList.add("hidden");
+document.getElementById("bottomNav").classList.add("hidden");
+
+  }
+
+  document.documentElement.classList.remove("compose-preload");
 }
 
 init();

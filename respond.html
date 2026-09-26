@@ -4,16 +4,31 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Inyeon — Respond</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="respond.css">
+
+  
 </head>
-<body>
 
-  <div class="decor-circle decor-circle-tl"></div>
+<body class="respond-page">
 
-  <a href="index.html" class="home-link">Inyeon</a>
+  <!-- Decorative Background -->
+  <div class="bg-circle"></div>
+  <div class="bg-wave-left"></div>
+  <div class="bg-wave-right"></div>
+  <div class="bg-leaf bg-leaf-left"></div>
+  <div class="bg-leaf bg-leaf-right"></div>
+
+  <!-- Menu -->
+  <div class="top-actions">
 
   <button id="menuBtn" class="menu-btn">
-    
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
          stroke="currentColor" stroke-width="2"
          stroke-linecap="round" stroke-linejoin="round">
@@ -23,91 +38,171 @@
     </svg>
   </button>
 
+  <a href="alerts.html" class="menu-btn alerts-btn">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+      <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+    </svg>
+  </a>
+
+</div>
+
   <div id="menuDropdown" class="menu-dropdown hidden">
     <a href="profile.html" class="menu-item">Profile</a>
     <a href="#" id="menuSignOut" class="menu-item">Sign out</a>
   </div>
 
-  <main>
-<main>
+  <!-- Main -->
+  <main class="respond-shell">
 
-  <div id="postContainer" class="conversation-card post-card">
+    <!-- Header -->
+    <header class="respond-header">
+      <div class="brand">
+        <a href="index.html" class="home-link">Inyeon</a>
+      </div>
+    </header>
 
-    <p id="postText" class="skeleton-text">&nbsp;</p>
+    <!-- Heavier / Lighter -->
+    <section class="emotion-switch">
 
-    <div id="optionsContainer">
-      <!-- JS injects textarea + buttons -->
-    </div>
+      <div class="segment-control initializing">
 
-  </div>
+        <button
+          id="heavierTab"
+          class="segment active"
+          data-category="difficult">
 
-  <p id="noPosts" class="hidden">
-    No posts to respond to right now.
-  </p>
+          🌊 Heavier
 
-</main>
+        </button>
+
+        <button
+          id="lighterTab"
+          class="segment"
+          data-category="light">
+
+          🌿 Lighter
+
+        </button>
+
+      </div>
+
+      <p class="segment-copy">
+        Different moments ask for different kinds of presence.
+      </p>
+
+    </section>
+
+    <!-- Response Card -->
+    <section id="postContainer" class="response-card">
+
+      <div class="card-accent left"></div>
+<div class="card-accent right"></div>
+
+<div id="responseContent" class="response-content">
+  <h2 id="postText" class="quote-title skeleton-text">Loading…</h2>
+  <div id="optionsContainer"></div>
+</div>
+
+    </section>
+
+    <!-- Empty State -->
+    <p id="noPosts" class="hidden no-posts">
+      No posts to respond to right now.
+    </p>
 
   </main>
 
-  <!-- ========================= -->
-  <!-- Success Modal -->
-  <!-- ========================= -->
+  <!-- Empty Response Modal -->
 
+<div id="emptyResponseModal" class="soft-popup hidden">
+
+  <div class="soft-popup-card">
+
+    <div class="popup-leaf">🌿</div>
+
+    <h3>Every honest response begins with a word.</h3>
+
+    <p>Even a few words can stay with someone.</p>
+
+    <button id="closeEmptyPopup" class="popup-btn">
+      Continue writing
+    </button>
+
+  </div>
+
+</div>
+
+  <!-- Success Modal -->
   <div id="responseModal" class="response-modal hidden">
 
     <div class="response-modal-card">
 
-      <div class="thread-line">
-        <span class="thread-dot"></span>
+      <div class="success-illustration">
+        <div class="success-circle"></div>
+        <div class="success-leaf"></div>
       </div>
 
-      <div class="modal-heart">
-        ❤️
-      </div>
+      <h2>You held space.</h2>
 
-      <h2>You showed up for someone today.</h2>
+      <p>
+        They'll only know someone chose to be here.
+      </p>
 
-      <p>It could be exactly what they needed today.</p>
+      <button id="nextPostBtn" class="next-post-btn">
+        Next post →
+      </button>
 
     </div>
 
   </div>
 
-  <!-- ========================= -->
   <!-- Bottom Navigation -->
-  <!-- ========================= -->
+  <nav id="bottomNav" class="bottom-nav">
 
-  <nav class="bottom-nav">
+  <a href="index.html#compose" class="bottom-nav-item active">
+    <!-- Pen icon -->
+    <svg width="22" height="22" viewBox="0 0 24 24"
+         fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M12 20h9"/>
+      <path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4Z"/>
+    </svg>
+    <span>Post</span>
+  </a>
 
-    <a href="index.html" class="bottom-nav-item">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-           stroke="currentColor" stroke-width="2"
-           stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-        <polyline points="9 22 9 12 15 12 15 22"/>
-      </svg>
-      <span>Home</span>
-    </a>
+  <a href="category-select.html" class="bottom-nav-item active">
+    <!-- Heart handshake -->
+    <svg width="22" height="22" viewBox="0 0 24 24"
+         fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M11 13l2 2 7-7"/>
+      <path d="M5 12l2 2 3-3"/>
+      <path d="M3 8a2 2 0 0 1 2-2h3l2 3h4l2-3h3a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-3l-2-3h-4l-2 3H5a2 2 0 0 1-2-2V8z"/>
+    </svg>
+    <span>Listen</span>
+  </a>
 
-    <a href="my-responses.html" class="bottom-nav-item">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-           stroke="currentColor" stroke-width="2"
-           stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-      </svg>
-      <span>My Responses</span>
-    </a>
+  <a href="my-responses.html" class="bottom-nav-item">
+    <!-- Message -->
+    <svg width="22" height="22" viewBox="0 0 24 24"
+         fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+    </svg>
+    <span>Responses</span>
+  </a>
 
-    <a href="given-responses.html" class="bottom-nav-item">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-           stroke="currentColor" stroke-width="2"
-           stroke-linecap="round" stroke-linejoin="round">
-        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-      </svg>
-      <span>My Support</span>
-    </a>
+  <a href="given-responses.html" class="bottom-nav-item">
+    <!-- Heart -->
+    <svg width="22" height="22" viewBox="0 0 24 24"
+         fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l7.78-7.78a5.5 5.5 0 0 0 0-7.78Z"/>
+    </svg>
+    <span>Support</span>
+  </a>
 
-  </nav>
+</nav>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="respond.js"></script>

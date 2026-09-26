@@ -69,8 +69,8 @@ async function loadDashboard() {
         .not("classified_at", "is", null),
 
       client
-      .from("posts")
-      .select("moment_type, retries_before_classification, classified_at"),
+        .from("posts")
+        .select("moment_type, retries_before_classification, classified_at, ai_provider, ai_confidence"),
 
       client
         .from("views")
@@ -101,7 +101,7 @@ async function loadDashboard() {
         : `${pendingCount} thoughts waiting`;
 
     /* -----------------------------
-       Average AI Time + Attempts
+       Average AI Time
     ----------------------------- */
 
     const classified = classifiedResult.data || [];
@@ -110,11 +110,7 @@ async function loadDashboard() {
     const avgValue = document.getElementById("avgTime");
     const avgStatus = document.getElementById("avgTimeStatus");
 
-    avgCard.classList.remove(
-      "ai-good",
-      "ai-warning",
-      "ai-danger"
-    );
+    avgCard.classList.remove("ai-good", "ai-warning", "ai-danger");
 
     if (!classified.length) {
 
@@ -233,59 +229,95 @@ async function loadDashboard() {
     }
 
     /* -----------------------------
-   Retry Distribution
------------------------------ */
+       AI Provider Split
+    ----------------------------- */
 
-const classifiedOnly = allPosts.filter(
-  p => p.moment_type !== "pending"
-);
+    const providerCard = document.getElementById("providerCard");
+    const providerPrimary = document.getElementById("providerPrimary");
+    const providerSecondary = document.getElementById("providerSecondary");
 
-const retryCard = document.getElementById("retryDistCard");
-const retryPrimary = document.getElementById("retryDistPrimary");
-const retrySecondary = document.getElementById("retryDistSecondary");
+    providerCard.classList.remove("ai-good", "ai-warning", "ai-danger");
 
-retryCard.classList.remove(
-  "ai-good",
-  "ai-warning",
-  "ai-danger"
-);
+    const providerCounts = allPosts.reduce((acc, post) => {
+      if (post.ai_provider) {
+        acc[post.ai_provider] = (acc[post.ai_provider] || 0) + 1;
+      }
+      return acc;
+    }, {});
 
-if (!classifiedOnly.length) {
+    const totalProvider = Object.values(providerCounts).reduce((a, b) => a + b, 0);
 
-  retryPrimary.textContent = "—";
-  retrySecondary.textContent = "Waiting for data";
+    if (!totalProvider) {
 
-} else {
+      providerPrimary.textContent = "—";
+      providerSecondary.textContent = "Waiting for data";
 
-  const firstTry = classifiedOnly.filter(
-    p => (p.retries_before_classification || 0) === 0
-  ).length;
+    } else {
 
-  const secondTry = classifiedOnly.filter(
-    p => (p.retries_before_classification || 0) === 1
-  ).length;
+      const sorted = Object.entries(providerCounts)
+        .sort((a, b) => b[1] - a[1]);
 
-  const thirdPlus = classifiedOnly.filter(
-    p => (p.retries_before_classification || 0) >= 2
-  ).length;
+      const [topProvider, topCount] = sorted[0];
 
-  const firstPct = Math.round(firstTry / classifiedOnly.length * 100);
-  const secondPct = Math.round(secondTry / classifiedOnly.length * 100);
-  const thirdPct = Math.round(thirdPlus / classifiedOnly.length * 100);
+      providerPrimary.textContent =
+        `${Math.round((topCount / totalProvider) * 100)}% ${topProvider}`;
 
-  retryPrimary.textContent = `${firstPct}%`;
+      providerSecondary.textContent =
+        sorted
+          .slice(1)
+          .map(([name, count]) =>
+            `${Math.round((count / totalProvider) * 100)}% ${name}`)
+          .join(" · ") || "Only one provider used";
 
-  retrySecondary.textContent =
-    `${secondPct}% 2nd · ${thirdPct}% 3rd+`;
+      if (topCount / totalProvider >= 0.9) {
+        providerCard.classList.add("ai-good");
+      } else if (topCount / totalProvider >= 0.7) {
+        providerCard.classList.add("ai-warning");
+      } else {
+        providerCard.classList.add("ai-danger");
+      }
 
-  if (firstPct >= 90) {
-    retryCard.classList.add("ai-good");
-  } else if (firstPct >= 70) {
-    retryCard.classList.add("ai-warning");
-  } else {
-    retryCard.classList.add("ai-danger");
-  }
-}
+    }
+
+    /* -----------------------------
+       Average Confidence
+    ----------------------------- */
+
+    const confidenceCard = document.getElementById("confidenceCard");
+    const avgConfidenceEl = document.getElementById("avgConfidence");
+    const confidenceStatus = document.getElementById("confidenceStatus");
+
+    confidenceCard.classList.remove("ai-good", "ai-warning", "ai-danger");
+
+    const confidencePosts = allPosts.filter(
+      p => p.ai_confidence !== null && p.ai_confidence !== undefined
+    );
+
+    if (!confidencePosts.length) {
+
+      avgConfidenceEl.textContent = "—";
+      confidenceStatus.textContent = "Waiting for data";
+
+    } else {
+
+      const avgConfidence =
+        confidencePosts.reduce((sum, p) => sum + p.ai_confidence, 0) /
+        confidencePosts.length;
+
+      avgConfidenceEl.textContent = `${Math.round(avgConfidence * 100)}%`;
+
+      if (avgConfidence >= 0.9) {
+        confidenceCard.classList.add("ai-good");
+        confidenceStatus.textContent = "Very confident";
+      } else if (avgConfidence >= 0.8) {
+        confidenceCard.classList.add("ai-warning");
+        confidenceStatus.textContent = "Healthy confidence";
+      } else {
+        confidenceCard.classList.add("ai-danger");
+        confidenceStatus.textContent = "Needs review";
+      }
+
+    }
 
     /* -----------------------------
        Someone Stayed Today

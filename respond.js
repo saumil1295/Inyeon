@@ -6,33 +6,26 @@ const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const params = new URLSearchParams(window.location.search);
 
-const selectedCategory = params.get("category");
+/* -----------------------------
+   Segmented Control
+----------------------------- */
 
-const momentType =
-  selectedCategory === "difficult"
+let selectedCategory = params.get("category") || "difficult";
+
+// Support both ?category=light and ?category=lighter
+if (selectedCategory === "lighter") selectedCategory = "light";
+if (selectedCategory === "heavier") selectedCategory = "difficult";
+
+function getMomentType() {
+  return selectedCategory === "difficult"
     ? "support"
     : "celebrate";
+}
 
-// Keep draft support
 const draftPostId = params.get("post");
 
 document.getElementById("menuBtn").addEventListener("click", () => {
   document.getElementById("menuDropdown").classList.toggle("hidden");
-});
-
-window.addEventListener("DOMContentLoaded", () => {
-  const title = document.querySelector("h1");
-  const subtitle = document.querySelector(".subtext");
-
-  if (!title || !subtitle) return;
-
-  if (selectedCategory === "difficult") {
-    title.textContent = "Heavier moments";
-    subtitle.textContent = "Stepping into someone's difficult day.";
-  } else {
-    title.textContent = "Lighter moments";
-    subtitle.textContent = "Something gentle is waiting.";
-  }
 });
 
 document.getElementById("menuSignOut").addEventListener("click", async (e) => {
@@ -97,96 +90,81 @@ function detectCrisis(text) {
    Someone Stayed
 ----------------------------- */
 
-function getStayThreshold(text){
-
+function getStayThreshold(text) {
   const words = text.trim().split(/\s+/).length;
 
   let base;
 
-  if(words <= 40){
+  if (words <= 40) {
     base = 7;
-  }else if(words <= 120){
+  } else if (words <= 120) {
     base = 9;
-  }else{
+  } else {
     base = 12;
   }
 
-  // ±1 second randomness
-  const variation = Math.floor(Math.random()*3)-1;
+  const variation = Math.floor(Math.random() * 3) - 1;
 
   return Math.max(6, base + variation);
-
 }
 
-function cancelStay(){
-
+function cancelStay() {
   clearTimeout(stayTimer);
-
   stayTimer = null;
   activePostId = null;
   stayStartTime = null;
-
 }
 
-async function trackStay(post){
-
-  if(!currentUser) return;
+async function trackStay(post) {
+  if (!currentUser) return;
 
   cancelStay();
 
-  // Don't count your own thought
-  if(post.anon_id === currentUser.id) return;
+  if (post.anon_id === currentUser.id) return;
 
   activePostId = post.id;
   stayStartTime = Date.now();
 
   const threshold = getStayThreshold(post.content);
 
-  stayTimer = setTimeout(async()=>{
+  stayTimer = setTimeout(async () => {
+    if (!isVisible) return;
 
-    if(!isVisible) return;
+    const elapsed = (Date.now() - stayStartTime) / 1000;
 
-    const elapsed = (Date.now()-stayStartTime)/1000;
+    if (elapsed < threshold) return;
 
-    if(elapsed < threshold) return;
-
-    const {data:existing,error}=await client
+    const { data: existing, error } = await client
       .from("views")
       .select("id,qualified")
-      .eq("post_id",post.id)
-      .eq("viewer_id",currentUser.id)
+      .eq("post_id", post.id)
+      .eq("viewer_id", currentUser.id)
       .maybeSingle();
 
-    if(error){
+    if (error) {
       console.error(error);
       return;
     }
 
-    if(existing?.qualified) return;
+    if (existing?.qualified) return;
 
-    if(existing){
-
+    if (existing) {
       await client
         .from("views")
-        .update({qualified:true})
-        .eq("id",existing.id);
-
-    }else{
-
+        .update({ qualified: true })
+        .eq("id", existing.id);
+    } else {
       await client
         .from("views")
         .insert({
-          post_id:post.id,
-          viewer_id:currentUser.id,
-          qualified:true
+          post_id: post.id,
+          viewer_id: currentUser.id,
+          qualified: true,
         });
-
     }
 
     console.log(`Someone stayed on post ${post.id}`);
-
-  }, threshold*1000);
-
+  }, threshold * 1000);
 }
 
 const postContainer = document.getElementById("postContainer");
@@ -196,41 +174,170 @@ const confirmation = document.getElementById("confirmation");
 const noPosts = document.getElementById("noPosts");
 
 let currentPost = null;
+
+const categoryState = {
+  difficult: { currentPost: null },
+  light: { currentPost: null }
+};
+
 let respondedPostIds = [];
 let blockedUserIds = [];
 let optionsByCategory = {};
 const skippedPostIds = [];
 
-// Someone Stayed tracking
 let stayTimer = null;
 let activePostId = null;
 let stayStartTime = null;
 let isVisible = true;
 
 /* -----------------------------
-   Category Selection
+   Fresh Feed Memory
 ----------------------------- */
 
-function fadeOut(el, callback) {
-  el.style.opacity = "0";
-  el.style.transform = "translateY(-8px)";
+const FEED_MEMORY_LIMIT = 30;
+const FEED_MEMORY_HOURS = 24;
 
-  setTimeout(() => {
-    el.classList.add("hidden");
-    callback && callback();
-  }, 300);
+function getFeedKey(){
+  return `seenPosts_${selectedCategory}`;
 }
 
-function fadeIn(el) {
-  el.classList.remove("hidden");
-  el.style.opacity = "0";
-  el.style.transform = "translateY(8px)";
+function getSeenPosts(){
+
+  try{
+
+    const stored = JSON.parse(localStorage.getItem(getFeedKey()));
+
+    if(!stored) return [];
+
+    const age =
+      Date.now() - stored.timestamp;
+
+    if(age > FEED_MEMORY_HOURS * 60 * 60 * 1000){
+
+      localStorage.removeItem(getFeedKey());
+      return [];
+
+    }
+
+    return stored.posts || [];
+
+  }catch{
+
+    return [];
+
+  }
+
+}
+
+function rememberPost(postId){
+
+  const seen = getSeenPosts();
+
+  seen.unshift(postId);
+
+  const unique =
+    [...new Set(seen)].slice(0, FEED_MEMORY_LIMIT);
+
+  localStorage.setItem(
+    getFeedKey(),
+    JSON.stringify({
+      posts: unique,
+      timestamp: Date.now()
+    })
+  );
+
+}
+
+function clearSeenPosts(){
+
+  localStorage.removeItem(getFeedKey());
+
+}
+
+/* -----------------------------
+   Segmented Control UI
+----------------------------- */
+
+const heavierTab = document.getElementById("heavierTab");
+const lighterTab = document.getElementById("lighterTab");
+
+function updateSegmentUI() {
+  heavierTab?.classList.toggle(
+    "active",
+    selectedCategory === "difficult"
+  );
+
+  lighterTab?.classList.toggle(
+    "active",
+    selectedCategory === "light"
+  );
+}
+
+async function switchCategory(nextCategory){
+
+  if(nextCategory === selectedCategory) return;
+
+  // Move the slider immediately
+  selectedCategory = nextCategory;
+  updateSegmentUI();
+
+  const urlCategory =
+    nextCategory === "light"
+      ? "lighter"
+      : "difficult";
+
+  history.replaceState({}, "", `?category=${urlCategory}`);
+
+  // Fade the card while the slider is moving
+  postContainer.classList.add("switching");
+
+  await new Promise(r => setTimeout(r,120));
+
+  // Restore where this category was left,
+  // otherwise fetch its first post.
+  const savedPost = categoryState[nextCategory].currentPost;
+
+  if(savedPost){
+
+    displayPost(
+      savedPost,
+      optionsByCategory[savedPost.moment_type] || []
+    );
+
+  }else{
+
+    const result = await fetchNextPost();
+
+    if(result){
+      displayPost(result.post, result.options);
+    }
+
+  }
+
+  // Fade back in
+  postContainer.classList.remove("switching");
+  postContainer.classList.add("entering");
 
   requestAnimationFrame(() => {
-    el.style.opacity = "1";
-    el.style.transform = "translateY(0)";
+    requestAnimationFrame(() => {
+      postContainer.classList.remove("entering");
+    });
   });
+
+  // Quietly prepare the opposite feed
+  preloadOtherCategory();
+
 }
+
+updateSegmentUI();
+
+heavierTab?.addEventListener("click", () => {
+  switchCategory("difficult");
+});
+
+lighterTab?.addEventListener("click", () => {
+  switchCategory("light");
+});
 
 let draftTimer;
 
@@ -313,7 +420,8 @@ function enableDraftAutosave() {
           .eq("post_id", currentPost.id)
           .eq("responder_anon_id", currentUser.id);
 
-        document.getElementById("draftStatus")?.classList.add("hidden");
+        document.getElementById("draftStatus")
+          ?.classList.add("hidden");
       }
     }, 500);
   };
@@ -327,29 +435,58 @@ async function clearDraft(postId) {
     .eq("responder_anon_id", currentUser.id);
 }
 
+/* -----------------------------
+   Empty Response Popup
+----------------------------- */
+
+function showEmptyResponsePopup(){
+
+  document
+    .getElementById("emptyResponseModal")
+    ?.classList.remove("hidden");
+
+}
+
+function hideEmptyResponsePopup(){
+
+  document
+    .getElementById("emptyResponseModal")
+    ?.classList.add("hidden");
+
+  document
+    .getElementById("responseInput")
+    ?.focus();
+
+}
+
 async function initData() {
- const [responsesResult, optionsResult, blockedResult, blockedByResult] = await Promise.all([
-  client
-    .from("responses")
-    .select("post_id")
-    .eq("responder_anon_id", currentUser.id),
+  const [
+    responsesResult,
+    optionsResult,
+    blockedResult,
+    blockedByResult
+  ] = await Promise.all([
 
-  client
-    .from("response_options")
-    .select("*"),
+    client
+      .from("responses")
+      .select("post_id")
+      .eq("responder_anon_id", currentUser.id),
 
-  // People I reported
-  client
-    .from("response_reports")
-    .select("reported_user_id")
-    .eq("reporter_id", currentUser.id),
+    client
+      .from("response_options")
+      .select("*"),
 
-  // People who reported me
-  client
-    .from("response_reports")
-    .select("reporter_id")
-    .eq("reported_user_id", currentUser.id)
-]);
+    client
+      .from("response_reports")
+      .select("reported_user_id")
+      .eq("reporter_id", currentUser.id),
+
+    client
+      .from("response_reports")
+      .select("reporter_id")
+      .eq("reported_user_id", currentUser.id)
+
+  ]);
 
   if (responsesResult.error) {
     console.error(responsesResult.error);
@@ -357,29 +494,35 @@ async function initData() {
     respondedPostIds = responsesResult.data.map(r => r.post_id);
   }
 
-  const peopleIReported = (blockedResult?.data || [])
-  .map(r => r.reported_user_id);
+  const peopleIReported =
+    (blockedResult?.data || []).map(r => r.reported_user_id);
 
-const peopleWhoReportedMe = (blockedByResult?.data || [])
-  .map(r => r.reporter_id);
+  const peopleWhoReportedMe =
+    (blockedByResult?.data || []).map(r => r.reporter_id);
 
-blockedUserIds = [...new Set([
-  ...peopleIReported,
-  ...peopleWhoReportedMe
-].filter(Boolean))];
+  blockedUserIds = [
+    ...new Set([
+      ...peopleIReported,
+      ...peopleWhoReportedMe
+    ].filter(Boolean))
+  ];
 
   if (optionsResult.error) {
     console.error(optionsResult.error);
   } else {
+
     optionsByCategory = {};
 
     optionsResult.data.forEach(opt => {
+
       if (!optionsByCategory[opt.need_category]) {
         optionsByCategory[opt.need_category] = [];
       }
 
       optionsByCategory[opt.need_category].push(opt);
+
     });
+
   }
 }
 
@@ -389,7 +532,6 @@ blockedUserIds = [...new Set([
 
 async function fetchNextPost() {
 
-    // Open directly into a saved draft if needed
   if (draftPostId) {
 
     const { data, error } = await client
@@ -400,38 +542,56 @@ async function fetchNextPost() {
 
     if (!error && data) {
 
-      // Don't open direct links to blocked users' posts
       if (!blockedUserIds.includes(data.anon_id)) {
+
         return {
           post: data,
-          options: optionsByCategory[data.moment_type] || []
+          options:
+            optionsByCategory[data.moment_type] || []
         };
+
       }
 
-           // If blocked, continue loading the next eligible post.
     }
+
   }
 
-  const excludedIds = [...respondedPostIds, ...skippedPostIds];
+  const seenPosts = getSeenPosts();
 
-let query = client
+const excludedIds = [
+  ...respondedPostIds,
+  ...skippedPostIds,
+  ...seenPosts
+];
+
+  let query = client
   .from("posts")
   .select("*")
-  .eq("status","active")
-  .eq("moment_type", momentType)
-  .is("deleted_at",null)
-  .neq("anon_id",currentUser.id)
-  .order("created_at",{ascending:true})
-  .limit(1);
+  .eq("status", "Active")
+  .eq("moment_type", getMomentType())
+  .is("deleted_at", null)
+  .neq("anon_id", currentUser.id)
+  .limit(100);
 
   if (blockedUserIds.length > 0) {
-  query = query.not("anon_id", "in", `(${blockedUserIds.join(",")})`);
-}
 
-  if (excludedIds.length) {
-    query = query.not("id", "in", `(${excludedIds.join(",")})`);
+    query = query.not(
+      "anon_id",
+      "in",
+      `(${blockedUserIds.join(",")})`
+    );
+
   }
 
+  if (excludedIds.length > 0) {
+
+  query = query.not(
+    "id",
+    "in",
+    `(${excludedIds.join(",")})`
+  );
+
+}
 
   let { data: posts, error } = await query;
 
@@ -440,48 +600,84 @@ let query = client
     return null;
   }
 
-  // If we've skipped everything in this category,
-  // recycle skipped posts but never answered ones.
   if ((!posts || posts.length === 0) && skippedPostIds.length) {
 
-    skippedPostIds.length = 0;
+  skippedPostIds.length = 0;
 
-   let retryQuery = client
-  .from("posts")
-  .select("*")
-  .eq("status","active")
-  .eq("moment_type", momentType)
-  .is("deleted_at",null)
-  .neq("anon_id",currentUser.id)
-  .order("created_at",{ascending:true})
-  .limit(1);
+  let retryQuery = client
+    .from("posts")
+    .select("*")
+    .eq("status", "Active")
+    .eq("moment_type", getMomentType())
+    .is("deleted_at", null)
+    .neq("anon_id", currentUser.id)
+    .limit(100);
 
   if (blockedUserIds.length > 0) {
-  retryQuery = retryQuery.not("anon_id", "in", `(${blockedUserIds.join(",")})`);
-}
-
-    if (respondedPostIds.length) {
-      retryQuery = retryQuery.not(
-        "id",
-        "in",
-        `(${respondedPostIds.join(",")})`
-      );
-    }
-
-    const retryResult = await retryQuery;
-    posts = retryResult.data;
+    retryQuery = retryQuery.not(
+      "anon_id",
+      "in",
+      `(${blockedUserIds.join(",")})`
+    );
   }
 
-  if (!posts || posts.length === 0) return null;
+  if (respondedPostIds.length) {
+    retryQuery = retryQuery.not(
+      "id",
+      "in",
+      `(${respondedPostIds.join(",")})`
+    );
+  }
 
-const post = posts[0];
+  const retryResult = await retryQuery;
+  posts = retryResult.data || [];
+}
+
+/* Feed exhausted → clear session memory and reshuffle */
+
+if (!posts || posts.length === 0) {
+
+  clearSeenPosts();
+
+  let resetQuery = client
+    .from("posts")
+    .select("*")
+    .eq("status", "Active")
+    .eq("moment_type", getMomentType())
+    .is("deleted_at", null)
+    .neq("anon_id", currentUser.id)
+    .limit(100);
+
+  if (blockedUserIds.length > 0) {
+    resetQuery = resetQuery.not(
+      "anon_id",
+      "in",
+      `(${blockedUserIds.join(",")})`
+    );
+  }
+
+  if (respondedPostIds.length) {
+    resetQuery = resetQuery.not(
+      "id",
+      "in",
+      `(${respondedPostIds.join(",")})`
+    );
+  }
+
+  const resetResult = await resetQuery;
+  posts = resetResult.data || [];
+
+  if (!posts.length) return null;
+}
+
+const post = posts[Math.floor(Math.random() * posts.length)];
 
 return {
   post,
-  options: optionsByCategory[momentType] || []
+  options: optionsByCategory[getMomentType()] || []
 };
 
-} // <-- Add this closing brace
+}
 
 /* -----------------------------
    Render post
@@ -490,8 +686,9 @@ return {
 function displayPost(post, options) {
 
   currentPost = post;
+categoryState[selectedCategory].currentPost = post;
+rememberPost(post.id);
 
-  // Re-enable interactions after skipping
   postContainer.style.pointerEvents = "auto";
 
   postContainer.classList.remove("hidden");
@@ -503,6 +700,7 @@ function displayPost(post, options) {
   let presetButtonsHtml = "";
 
   options.forEach(option => {
+
     presetButtonsHtml += `
       <button
         class="response-btn"
@@ -510,6 +708,7 @@ function displayPost(post, options) {
         ${option.response_text}
       </button>
     `;
+
   });
 
   optionsContainer.innerHTML = `
@@ -519,16 +718,14 @@ function displayPost(post, options) {
       placeholder="Write something honest..."
     ></textarea>
 
-    <div class="response-meta">
-
+    <div class="helper-row">
       <span id="writingHint" class="writing-hint">
-        Write like you're sitting beside them.
-      </span>
+  Write like you're sitting beside them.
+</span>
 
-      <span id="charCount" class="char-count">
+      <span class="char-count" id="charCount">
         0 / 500
       </span>
-
     </div>
 
     <div id="draftStatus" class="draft-status hidden">
@@ -536,11 +733,19 @@ function displayPost(post, options) {
     </div>
 
     <button id="sendResponseBtn">
-      Your thought isn't alone.
+      Your words aren't alone.
     </button>
 
-    <p class="or-divider">
-      or choose a quick response
+    <div class="divider">
+      <span>or choose a quick response</span>
+    </div>
+
+    <button id="holdSpaceBtn" class="secondary-btn">
+      🌿 Hold space
+    </button>
+
+    <p class="hold-copy">
+      A small gesture can mean a lot.
     </p>
 
     <div id="presetButtons">
@@ -565,17 +770,21 @@ function displayPost(post, options) {
 
     counter.classList.remove("warning", "danger");
 
-    if (len >= 470) counter.classList.add("warning");
-
-    if (len >= 500) {
-      counter.classList.remove("warning");
-      counter.classList.add("danger");
+    if (len >= 470) {
+      counter.classList.add("warning");
     }
 
-    sendBtn.disabled = len === 0;
+    if (len >= 500) {
+
+      counter.classList.remove("warning");
+      counter.classList.add("danger");
+
+    }
+
+    sendBtn.classList.toggle("empty", len === 0);
+
   }
 
-  // Restore draft first
   loadDraft().then(() => updateCounter());
 
   enableDraftAutosave();
@@ -602,100 +811,175 @@ function displayPost(post, options) {
 
     hintInterval = setInterval(() => {
 
-      hintIndex = (hintIndex + 1) % hintMessages.length;
+      hintIndex =
+        (hintIndex + 1) % hintMessages.length;
 
       hint.classList.add("fade-out");
 
       setTimeout(() => {
-        hint.textContent = hintMessages[hintIndex];
+
+        hint.textContent =
+          hintMessages[hintIndex];
+
         hint.classList.remove("fade-out");
+
       }, 180);
 
     }, 8000);
+
   });
 
   document
-    .getElementById("sendResponseBtn")
-    .addEventListener("click", () => {
+  .getElementById("sendResponseBtn")
+  .addEventListener("click", () => {
 
-      const text = input.value.trim();
-      if (!text) return;
+    const text = input.value.trim();
 
-      sendFreeTextResponse(text);
+    if (!text){
+
+      showEmptyResponsePopup();
+      return;
+
+    }
+
+    sendFreeTextResponse(text);
+
+  });
+
+  document
+    .getElementById("holdSpaceBtn")
+    ?.addEventListener("click", () => {
+
+      sendPresetResponse(
+        "🌿 I'm holding space with you."
+      );
+
     });
 
   document
     .querySelectorAll("#presetButtons .response-btn")
     .forEach(btn => {
+
       btn.addEventListener("click", () => {
+
         sendPresetResponse(btn.dataset.text, btn);
+
       });
+
     });
 
   document
-    .getElementById("skipBtn")
-    .addEventListener("click", handleSkip);
+  .getElementById("skipBtn")
+  .addEventListener("click", handleSkip);
 
-    // Start "Someone Stayed" tracking once the card is rendered
+document
+  .getElementById("closeEmptyPopup")
+  ?.addEventListener("click", hideEmptyResponsePopup);
+
+document
+  .getElementById("emptyResponseModal")
+  ?.addEventListener("click", (e) => {
+
+    if (e.target.id === "emptyResponseModal") {
+      hideEmptyResponsePopup();
+    }
+
+  });
+
 requestAnimationFrame(() => {
   trackStay(post);
+
+  // Remember where this category was left
+categoryState[selectedCategory].currentPost = post;
 });
+
 }
 
 /* -----------------------------
    First load after category pick
 ----------------------------- */
 
-async function loadInitialPost() {
+async function loadInitialPost(){
 
   await initData();
 
   const result = await fetchNextPost();
 
-  if (!result) {
+  if(!result){
+
     postContainer.classList.add("hidden");
     noPosts.classList.remove("hidden");
     return;
+
   }
 
   displayPost(result.post, result.options);
+
+}
+
+/* -----------------------------
+   Preload opposite category
+----------------------------- */
+
+async function preloadOtherCategory(){
+
+  const otherCategory =
+    selectedCategory === "difficult"
+      ? "light"
+      : "difficult";
+
+  if (categoryState[otherCategory].currentPost) return;
+
+  const previousCategory = selectedCategory;
+
+  selectedCategory = otherCategory;
+
+  const result = await fetchNextPost();
+
+  selectedCategory = previousCategory;
+
+  if(result){
+    categoryState[otherCategory].currentPost = result.post;
+  }
+
 }
 
 /* -----------------------------
    Card transition
 ----------------------------- */
 
-function animateToNextPost(nextResultPromise) {
+async function animateToNextPost(){
 
-  postContainer.classList.remove("post-enter");
-  postContainer.classList.add("post-exit");
+  const content = document.getElementById("responseContent");
 
-  nextResultPromise.then(result => {
+  content.classList.add("exiting");
 
-    setTimeout(() => {
+  await new Promise(r => setTimeout(r,220));
 
-      postContainer.classList.remove("post-exit");
+  // Always fetch using the CURRENT selected category
+  const result = await fetchNextPost();
 
-      if (!result) {
-        postContainer.classList.add("hidden");
-        noPosts.classList.remove("hidden");
-        return;
-      }
+  if(!result){
 
-      displayPost(result.post, result.options);
+    postContainer.classList.add("hidden");
+    noPosts.classList.remove("hidden");
+    content.classList.remove("exiting");
+    return;
 
-      requestAnimationFrame(() => {
+  }
 
-        postContainer.classList.add("post-enter");
+  displayPost(result.post, result.options);
 
-        postContainer.addEventListener("animationend", () => {
-          postContainer.classList.remove("post-enter");
-        }, { once: true });
+  // Quietly prepare the first post for the other tab.
+preloadOtherCategory();
 
-      });
+  content.classList.remove("exiting");
+  content.classList.add("entering");
 
-    }, 220);
-
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      content.classList.remove("entering");
+    });
   });
 
 }
@@ -719,7 +1003,7 @@ function handleSkip() {
 
   postContainer.style.pointerEvents = "none";
 
-  animateToNextPost(fetchNextPost());
+  animateToNextPost();
 
 }
 
@@ -730,7 +1014,7 @@ function handleSkip() {
 async function checkRateLimit(userId) {
 
   const startOfDay = new Date();
-  startOfDay.setHours(0,0,0,0);
+  startOfDay.setHours(0, 0, 0, 0);
 
   const { count, error } = await client
     .from("responses")
@@ -741,13 +1025,14 @@ async function checkRateLimit(userId) {
   if (error) return false;
 
   return count >= 50;
+
 }
 
 /* -----------------------------
    Success modal
 ----------------------------- */
 
-function showConfirmationAndAdvance(){
+function showConfirmationAndAdvance() {
 
   const modal = document.getElementById("responseModal");
 
@@ -757,9 +1042,9 @@ function showConfirmationAndAdvance(){
 
     modal.classList.add("hidden");
 
-    animateToNextPost(fetchNextPost());
+    animateToNextPost();
 
-  },1600);
+  }, 1600);
 
 }
 
@@ -767,7 +1052,7 @@ function showConfirmationAndAdvance(){
    Written response
 ----------------------------- */
 
-async function sendFreeTextResponse(responseText){
+async function sendFreeTextResponse(responseText) {
 
   const sendBtn = document.getElementById("sendResponseBtn");
   const skipBtn = document.getElementById("skipBtn");
@@ -779,7 +1064,7 @@ async function sendFreeTextResponse(responseText){
     .querySelectorAll("#presetButtons .response-btn")
     .forEach(btn => btn.disabled = true);
 
-  if (await checkRateLimit(currentUser.id)){
+  if (await checkRateLimit(currentUser.id)) {
 
     alert("You've reached today's response limit. Come back tomorrow.");
 
@@ -791,6 +1076,7 @@ async function sendFreeTextResponse(responseText){
       .forEach(btn => btn.disabled = false);
 
     return;
+
   }
 
   const isCrisis = detectCrisis(responseText);
@@ -805,7 +1091,7 @@ async function sendFreeTextResponse(responseText){
       response_type: "written"
     });
 
-  if (error){
+  if (error) {
 
     console.error(error);
     alert("Something went wrong. Try again.");
@@ -818,15 +1104,16 @@ async function sendFreeTextResponse(responseText){
       .forEach(btn => btn.disabled = false);
 
     return;
+
   }
 
   respondedPostIds.push(currentPost.id);
 
-cancelStay();
+  cancelStay();
 
-await clearDraft(currentPost.id);
+  await clearDraft(currentPost.id);
 
-showConfirmationAndAdvance();
+  showConfirmationAndAdvance();
 
 }
 
@@ -834,9 +1121,9 @@ showConfirmationAndAdvance();
    Preset response
 ----------------------------- */
 
-async function sendPresetResponse(responseText, buttonEl){
+async function sendPresetResponse(responseText, buttonEl) {
 
-  if (buttonEl){
+  if (buttonEl) {
 
     buttonEl.classList.add("response-btn-selected");
 
@@ -846,7 +1133,7 @@ async function sendPresetResponse(responseText, buttonEl){
 
         btn.style.pointerEvents = "none";
 
-        if (btn !== buttonEl){
+        if (btn !== buttonEl) {
           btn.style.opacity = "0.35";
         }
 
@@ -857,9 +1144,11 @@ async function sendPresetResponse(responseText, buttonEl){
   document.getElementById("sendResponseBtn").disabled = true;
   document.getElementById("skipBtn").disabled = true;
 
-  if (await checkRateLimit(currentUser.id)){
+  if (await checkRateLimit(currentUser.id)) {
+
     alert("You've reached today's response limit. Come back tomorrow.");
     return;
+
   }
 
   const { error } = await client
@@ -872,19 +1161,21 @@ async function sendPresetResponse(responseText, buttonEl){
       response_type: "preset"
     });
 
-  if (error){
+  if (error) {
+
     console.error(error);
     alert("Something went wrong. Try again.");
     return;
+
   }
 
   respondedPostIds.push(currentPost.id);
 
-cancelStay();
+  cancelStay();
 
-await clearDraft(currentPost.id);
+  await clearDraft(currentPost.id);
 
-showConfirmationAndAdvance();
+  showConfirmationAndAdvance();
 
 }
 
@@ -892,18 +1183,28 @@ showConfirmationAndAdvance();
    App start
 ----------------------------- */
 
-async function init() {
+async function init(){
+
   const authed = await requireAuth();
-  if (!authed) return;
+  if(!authed) return;
+
+  updateSegmentUI();
+
+  requestAnimationFrame(() => {
+    document
+      .querySelector(".segment-control")
+      ?.classList.remove("initializing");
+  });
 
   await loadInitialPost();
+
 }
 
 document.addEventListener("visibilitychange", () => {
 
   isVisible = !document.hidden;
 
-  if(document.hidden){
+  if (document.hidden) {
     cancelStay();
   }
 

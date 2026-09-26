@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&family=Inter:wght@400;500;600&display=swap');
 
+
 /* =========================
    INYEON PREMIUM WARM THEME
 ========================= */
@@ -33,6 +34,42 @@ body {
   justify-content: center;
   min-height: 100vh;
   line-height: 1.6;
+}
+
+.top-actions{
+  position:fixed;
+  top:24px;
+  left:24px;
+  right:24px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  z-index:100;
+}
+
+.top-actions .menu-btn,
+.top-actions .alerts-btn{
+  position: static;
+}
+
+.alerts-btn{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  text-decoration:none;
+}
+
+/* Prevent flash when opening index.html#compose */
+.compose-preload #choiceStep {
+  display: none !important;
+}
+
+.compose-preload #postStep {
+  display: block !important;
+}
+
+.compose-preload #bottomNav{
+  display:flex !important;
 }
 
 main {

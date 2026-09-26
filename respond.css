@@ -1,0 +1,792 @@
+
+/* ==========================================
+   INYEON RESPOND PAGE V2
+   Only affects respond.html
+========================================== */
+
+.respond-page{
+
+--bg:#F8F6F1;
+--card:#FCFAF6;
+--border:#DDD2C1;
+
+--text:#223225;
+--muted:#676157;
+
+--blue:#6F90AA;
+--blue-dark:#587994;
+
+--sage:#4E6B4F;
+--sage-soft:#DCE7D8;
+
+--peach:#EAD8BE;
+
+background:var(--bg);
+
+}
+
+/* ---------- Layout ---------- */
+
+.respond-shell{
+  max-width:470px;
+  margin:auto;
+  padding:18px 16px 120px;
+}
+
+/* ---------- Decorative Background ---------- */
+
+.bg-circle{
+
+position:fixed;
+top:-110px;
+left:-120px;
+
+width:260px;
+height:260px;
+
+border-radius:50%;
+background:#F1DFB6;
+
+opacity:.75;
+pointer-events:none;
+z-index:0;
+
+}
+
+.bg-wave-left,
+.bg-wave-right{
+
+position:fixed;
+pointer-events:none;
+opacity:.35;
+z-index:0;
+
+}
+
+.bg-wave-left{
+
+left:-120px;
+top:170px;
+
+width:220px;
+height:220px;
+
+border:2px solid #E8D7BE;
+border-radius:50%;
+
+}
+
+.bg-wave-right{
+
+right:-120px;
+bottom:120px;
+
+width:260px;
+height:180px;
+
+border-bottom:2px solid #E8D7BE;
+border-radius:50%;
+
+}
+
+/* ---------- Header ---------- */
+
+.respond-header{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  margin-bottom:16px;
+}
+
+.back-btn{
+
+position:absolute;
+left:0;
+
+width:46px;
+height:46px;
+
+border-radius:50%;
+border:1px solid var(--border);
+
+background:white;
+
+display:flex;
+align-items:center;
+justify-content:center;
+
+}
+
+.brand{
+
+text-align:center;
+
+}
+
+.brand .home-link{
+
+font-family:"Cormorant Garamond",serif;
+font-size:2.2rem;
+font-weight:600;
+text-decoration:none;
+color:var(--text);
+
+}
+
+.brand p{
+
+margin-top:-6px;
+color:var(--muted);
+font-size:.95rem;
+
+}
+
+/* ---------- Segmented Control ---------- */
+
+.emotion-switch{
+
+margin-bottom:18px;
+
+}
+
+.segment-control{
+  display:flex;
+  background:white;
+  border:1px solid var(--border);
+  border-radius:999px;
+  padding:3px;
+  max-width:370px;
+  margin:0 auto;
+}
+
+.segment{
+  flex:1;
+  padding:10px 12px;
+  border:none;
+  background:transparent;
+  border-radius:999px;
+  font-family:"Cormorant Garamond",serif;
+  font-size:1rem;
+  transition:.22s ease;
+}
+
+.segment.active{
+  background:#BDD1E2;
+  color:#223225;
+}
+
+.segment-copy{
+  text-align:center;
+  margin:10px auto 18px;
+  font-size:0.78rem;
+  line-height:1.35;
+  color:var(--muted);
+  max-width:260px;
+}
+
+/* Disable the first paint animation */
+
+.segment-control.initializing .segment{
+  transition:none !important;
+}
+
+/* ---------- Segmented Control Animation ---------- */
+
+.segment{
+  cursor:pointer;
+  color:#5B675B;
+  transition:all .25s ease;
+}
+
+.segment.active{
+  background:#BDD1E2;
+  color:#223225;
+  box-shadow:0 2px 6px rgba(111,144,170,.18);
+}
+
+.response-card{
+  transition:
+    opacity .18s ease,
+    transform .18s ease;
+}
+
+.response-card.switching{
+  opacity:.35;
+  transform:translateY(-8px);
+}
+
+/* ---------- Card ---------- */
+
+.response-card{
+
+background:var(--card);
+
+border:1px solid var(--border);
+
+border-radius:30px;
+
+padding:28px 20px;
+
+position:relative;
+
+overflow:hidden;
+
+box-shadow:0 10px 30px rgba(34,50,37,.04);
+
+}
+
+/* ---------- Card Crossfade ---------- */
+
+.response-card{
+  transition:
+    opacity .18s ease,
+    transform .18s ease;
+}
+
+.response-card.switching{
+  opacity:0;
+  transform:translateY(8px);
+}
+
+.response-card.entering{
+  opacity:1;
+  transform:translateY(0);
+}
+
+.card-accent{
+
+position:absolute;
+width:120px;
+height:120px;
+
+border-radius:50%;
+opacity:.25;
+
+}
+
+.card-accent.left{
+
+background:#EEDCC1;
+left:-45px;
+top:40px;
+
+}
+
+.card-accent.right{
+
+background:#DDE7DC;
+right:-35px;
+top:20px;
+
+}
+
+.quote-title{
+
+font-family:"Cormorant Garamond",serif;
+
+font-size:2rem;
+
+line-height:1.25;
+
+text-align:center;
+
+color:var(--text);
+
+margin-bottom:24px;
+
+}
+
+/* ---------- Card Content Transition ---------- */
+
+.response-content{
+  transition:
+    opacity .24s ease,
+    transform .24s ease;
+}
+
+.response-content.exiting{
+  opacity:0;
+  transform:translateY(-12px);
+}
+
+.response-content.entering{
+  opacity:0;
+  transform:translateY(12px);
+}
+
+/* ---------- Textarea ---------- */
+
+#optionsContainer textarea{
+
+width:100%;
+min-height:135px;
+
+background:white;
+
+border:1px solid var(--border);
+
+border-radius:22px;
+
+padding:18px;
+
+font-size:1rem;
+line-height:1.7;
+
+resize:none;
+
+box-shadow:inset 0 2px 6px rgba(0,0,0,.02);
+
+}
+
+#optionsContainer textarea:focus{
+
+outline:none;
+
+border-color:#B8C8D5;
+box-shadow:0 0 0 3px rgba(111,144,170,.12);
+
+}
+
+/* ---------- Helper ---------- */
+
+.helper-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  width:100%;
+  margin:8px 2px 24px; /* increased from 16px */
+}
+
+.helper-row .writing-hint,
+.helper-row .char-count{
+  font-size:0.78rem;      /* both exactly the same size */
+  line-height:1;
+  font-weight:400;
+}
+
+.helper-row .writing-hint{
+  margin-top:-2px;
+  color:var(--muted);
+}
+
+.helper-row .char-count{
+  margin-top:-2px;         /* match the baseline exactly */
+  color:#8C857A;
+  font-variant-numeric:tabular-nums;
+}
+
+/* ---------- Primary CTA ---------- */
+
+/* ---------- Primary CTA ---------- */
+
+#sendResponseBtn{
+  width:88%;
+  display:block;
+  margin:16px auto 0;
+  padding:14px 22px;
+
+  border:none;
+  border-radius:999px;
+
+  background:linear-gradient(135deg,#7395B2 0%,#5E7F9C 100%);
+  color:white;
+
+  font-family:"Cormorant Garamond",serif;
+  font-size:1.18rem;
+  font-weight:600;
+
+  box-shadow:0 10px 22px rgba(95,132,162,.24);
+  transition:all .22s ease;
+}
+
+#sendResponseBtn:hover{
+  transform:translateY(-2px);
+  box-shadow:0 14px 28px rgba(95,132,162,.28);
+}
+
+#sendResponseBtn.empty{
+  opacity:.9;
+}
+
+/* ---------- Divider ---------- */
+
+.divider{
+
+display:flex;
+align-items:center;
+justify-content:center;
+
+margin:20px 0;
+
+color:var(--muted);
+
+}
+
+.divider::before,
+.divider::after{
+
+content:"";
+
+flex:1;
+
+height:1px;
+
+background:#DED6CB;
+
+}
+
+.divider span{
+
+margin:0 14px;
+
+font-size:.92rem;
+
+}
+
+/* ---------- Hold Space ---------- */
+
+.secondary-btn{
+  width:88%;
+  display:block;
+  margin:18px auto 0;
+  padding:12px 20px;
+
+  border-radius:999px;
+  border:1.8px solid #5A7658;
+
+  background:rgba(255,255,255,.55);
+  backdrop-filter:blur(6px);
+
+  color:#486447;
+
+  font-family:"Cormorant Garamond",serif;
+  font-size:1.08rem;
+  font-weight:600;
+
+  transition:all .22s ease;
+}
+
+.secondary-btn:hover{
+  background:#F1F6EF;
+  transform:translateY(-1px);
+}
+
+.hold-copy{
+  text-align:center;
+  font-size:.82rem;
+  color:var(--muted);
+  margin-top:10px;
+  margin-bottom:16px;
+}
+
+/* ---------- Quick Response Buttons ---------- */
+
+.response-btn{
+  width:100%;
+  margin-bottom:10px;
+  padding:14px 18px;
+
+  border:1px solid #D8CCBC;
+  border-radius:18px;
+
+  background:#FFFDFC;
+
+  color:#3E473E;
+
+  font-size:.96rem;
+  line-height:1.45;
+
+  text-align:left;
+
+  transition:all .18s ease;
+}
+
+.response-btn:hover{
+  background:#FAF7F2;
+  border-color:#C7BBA8;
+  transform:translateY(-1px);
+}
+
+/* ---------- Skip ---------- */
+
+.skip-btn{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+
+  margin:24px auto 0;
+
+  padding:12px 22px;
+
+  border:none;
+  background:transparent;
+
+  color:#8A857D;
+
+  font-size:.95rem;
+  font-weight:500;
+  font-family:"Inter",sans-serif;
+
+  transition:all .18s ease;
+}
+
+.skip-btn:hover{
+  color:#5E5A52;
+  transform:translateX(2px);
+}
+
+/* ---------- Success Modal ---------- */
+
+.response-modal{
+
+position:fixed;
+inset:0;
+
+background:rgba(248,246,241,.95);
+
+display:flex;
+align-items:center;
+justify-content:center;
+
+z-index:100;
+
+backdrop-filter:blur(8px);
+
+}
+
+.response-modal-card{
+
+max-width:360px;
+width:90%;
+
+text-align:center;
+
+}
+
+.success-circle{
+
+width:170px;
+height:170px;
+
+margin:auto;
+
+border-radius:50%;
+
+background:#F2F5EE;
+
+position:relative;
+
+}
+
+.success-circle::after{
+
+content:"🌿";
+
+position:absolute;
+inset:0;
+
+display:flex;
+align-items:center;
+justify-content:center;
+
+font-size:3rem;
+
+}
+
+.response-modal-card h2{
+
+font-family:"Cormorant Garamond",serif;
+
+font-size:2.6rem;
+
+margin:30px 0 10px;
+
+color:var(--text);
+
+}
+
+.response-modal-card p{
+
+color:var(--muted);
+
+font-size:1.05rem;
+line-height:1.6;
+
+margin-bottom:30px;
+
+}
+
+.next-post-btn{
+
+width:100%;
+
+padding:18px;
+
+border:none;
+
+border-radius:999px;
+
+background:#5E765C;
+
+color:white;
+
+font-family:"Cormorant Garamond",serif;
+font-size:1.35rem;
+
+}
+
+/* ---------- Bottom Nav ---------- */
+
+.bottom-nav{
+
+position:fixed;
+
+left:50%;
+bottom:18px;
+
+transform:translateX(-50%);
+
+width:min(92%,440px);
+
+background:white;
+
+border:1px solid var(--border);
+
+border-radius:36px;
+
+display:flex;
+justify-content:space-around;
+
+padding:14px 12px;
+
+box-shadow:0 14px 34px rgba(0,0,0,.08);
+
+}
+
+.bottom-nav-item{
+
+display:flex;
+flex-direction:column;
+align-items:center;
+gap:6px;
+
+color:#6E6A63;
+
+text-decoration:none;
+
+font-size:.72rem;
+
+}
+
+.bottom-nav-item.active{
+
+color:var(--text);
+
+}
+
+.bottom-nav-item.active svg{
+
+transform:scale(1.08);
+
+}
+
+/* ---------- Mobile ---------- */
+
+@media(max-width:480px){
+
+.respond-shell{
+
+padding:18px 18px 120px;
+
+}
+
+.quote-title{
+
+font-size:1.8rem;
+
+}
+
+.brand .home-link{
+
+font-size:2rem;
+
+}
+
+}
+
+/* ---------- Soft Popup ---------- */
+
+.soft-popup{
+  position:fixed;
+  inset:0;
+  background:rgba(248,246,241,.45);
+  backdrop-filter:blur(6px);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index:120;
+  opacity:1;
+  transition:opacity .22s ease;
+}
+
+.soft-popup.hidden{
+  display:none;
+}
+
+.soft-popup-card{
+  width:min(88%,330px);
+  background:#FCFAF6;
+  border:1px solid var(--border);
+  border-radius:28px;
+  padding:26px 22px;
+  text-align:center;
+  box-shadow:0 18px 40px rgba(34,50,37,.08);
+  animation:popupRise .22s ease;
+}
+
+.popup-leaf{
+  font-size:2rem;
+  margin-bottom:10px;
+}
+
+.soft-popup-card h3{
+  font-family:"Cormorant Garamond",serif;
+  font-size:1.65rem;
+  color:var(--text);
+  margin-bottom:10px;
+  line-height:1.2;
+}
+
+.soft-popup-card p{
+  color:var(--muted);
+  font-size:.95rem;
+  line-height:1.5;
+  margin-bottom:20px;
+}
+
+.popup-btn{
+  width:100%;
+  padding:14px;
+  border:none;
+  border-radius:999px;
+  background:#5E7F9C;
+  color:white;
+  font-family:"Cormorant Garamond",serif;
+  font-size:1.15rem;
+  font-weight:600;
+}
+
+@keyframes popupRise{
+
+  from{
+    opacity:0;
+    transform:translateY(14px) scale(.98);
+  }
+
+  to{
+    opacity:1;
+    transform:translateY(0) scale(1);
+  }
+
+}
