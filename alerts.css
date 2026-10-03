@@ -86,19 +86,12 @@
 
 /* ---------- Acknowledgment alerts ---------- */
 
-/* ---------- Acknowledgment alerts ---------- */
-
 .alert-card{
-  opacity:0;
-  transform:translateY(8px);
+  opacity:1;
+  transform:translateY(0);
   transition:
     opacity .24s ease,
     transform .24s ease;
-}
-
-.alert-card.show{
-  opacity:1;
-  transform:translateY(0);
 }
 
 .alert-time{

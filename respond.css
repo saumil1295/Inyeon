@@ -907,3 +907,282 @@ font-size:2rem;
   60%{transform:scale(1.12);}
   100%{transform:scale(1);}
 }
+
+/* ==========================================
+   RESPONSE SAFETY CHECK
+========================================== */
+
+.response-safety-check {
+  position: fixed;
+  inset: 0;
+
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+
+  padding: 24px;
+
+  background: rgba(30, 42, 34, 0.28);
+
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  z-index: 2000;
+
+  box-sizing: border-box;
+
+  animation: safetyOverlayIn 0.22s ease-out;
+}
+
+.response-safety-check.hidden {
+  display: none !important;
+}
+
+
+/* ==========================================
+   MODAL CARD
+========================================== */
+
+.safety-dialog {
+  width: min(100%, 430px);
+
+  padding: 34px 32px 30px;
+
+  box-sizing: border-box;
+
+  background: #FAF9F3;
+
+  border: 1px solid rgba(255, 255, 255, 0.8);
+
+  border-radius: 28px;
+
+  box-shadow:
+    0 24px 70px rgba(24, 38, 29, 0.20),
+    0 6px 20px rgba(24, 38, 29, 0.08);
+
+  text-align: center;
+
+  animation: safetyCardIn 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+
+/* ==========================================
+   ICON
+========================================== */
+
+.safety-icon {
+  width: 58px;
+  height: 58px;
+
+  margin: 0 auto 20px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background: #EEF4ED;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(79, 112, 82, 0.08);
+
+  color: #55745B;
+}
+
+.safety-icon span {
+  font-size: 1.55rem;
+
+  line-height: 1;
+}
+
+
+/* ==========================================
+   HEADING
+========================================== */
+
+.safety-dialog h3 {
+  margin: 0 auto 14px;
+
+  max-width: 340px;
+
+  font-family: "Cormorant Garamond", serif;
+
+  font-size: 2rem;
+  line-height: 1.12;
+
+  font-weight: 600;
+
+  color: var(--text);
+}
+
+
+/* ==========================================
+   BODY COPY
+========================================== */
+
+.safety-dialog > p {
+  margin: 0 auto;
+
+  max-width: 350px;
+
+  font-family: "Inter", sans-serif;
+
+  font-size: 0.92rem;
+  line-height: 1.6;
+
+  color: var(--muted);
+}
+
+.safety-dialog .safety-question {
+  margin-top: 18px;
+
+  font-weight: 600;
+
+  color: var(--text);
+}
+
+
+/* ==========================================
+   BUTTONS
+========================================== */
+
+.safety-actions {
+  display: flex;
+
+  gap: 12px;
+
+  width: 100%;
+
+  margin-top: 26px;
+}
+
+.safety-btn {
+  flex: 1;
+
+  min-height: 48px;
+
+  padding: 12px 18px;
+
+  border-radius: 999px;
+
+  font-family: "Cormorant Garamond", serif;
+
+  font-size: 1.05rem;
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+
+/* EDIT */
+
+.safety-btn.secondary {
+  border: 1.5px solid #B8C8D5;
+
+  background: #FFFFFF;
+
+  color: var(--text);
+}
+
+.safety-btn.secondary:hover {
+  background: #F7F8F5;
+
+  transform: translateY(-1px);
+}
+
+
+/* SEND ANYWAY */
+
+.safety-btn.primary {
+  border: none;
+
+  background: #6F91AE;
+
+  color: #FFFFFF;
+
+  box-shadow:
+    0 8px 18px rgba(95, 132, 162, 0.20);
+}
+
+.safety-btn.primary:hover {
+  background: #6385A2;
+
+  transform: translateY(-1px);
+
+  box-shadow:
+    0 10px 22px rgba(95, 132, 162, 0.27);
+}
+
+
+/* ==========================================
+   ANIMATION
+========================================== */
+
+@keyframes safetyOverlayIn {
+
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+
+}
+
+@keyframes safetyCardIn {
+
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+}
+
+
+/* ==========================================
+   MOBILE
+========================================== */
+
+@media (max-width: 480px) {
+
+  .response-safety-check {
+    padding: 18px;
+  }
+
+  .safety-dialog {
+    padding: 30px 24px 26px;
+
+    border-radius: 25px;
+  }
+
+  .safety-dialog h3 {
+    font-size: 1.8rem;
+  }
+
+  .safety-dialog > p {
+    font-size: 0.9rem;
+  }
+
+  .safety-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .safety-btn {
+    width: 100%;
+  }
+
+}

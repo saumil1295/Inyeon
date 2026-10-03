@@ -1,104 +1,241 @@
 const SUPABASE_URL = "https://fjgshtktadaddwmshugw.supabase.co";
-const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZqZ3NodGt0YWRhZGR3bXNodWd3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzNzEzODQsImV4cCI6MjEwNDk0NzM4NH0.fMUzZ2chICrxSvRVdwrEb9TseFY532kC2KtsvV_zpGM";
 
 const { createClient } = supabase;
 const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const menuBtn = document.getElementById("menuBtn");
 const alertsList = document.getElementById("alertsList");
 const emptyState = document.getElementById("emptyState");
+const menuBtn = document.getElementById("menuBtn");
+
+let currentUser = null;
+
+
+// --------------------------------------------------
+// MENU
+// --------------------------------------------------
 
 menuBtn?.addEventListener("click", () => {
   window.location.href = "profile.html";
 });
 
-let currentUser = null;
+
+// --------------------------------------------------
+// AUTH
+// --------------------------------------------------
 
 async function requireAuth() {
-  const { data: { session } } = await client.auth.getSession();
 
-  if (!session) {
+  const {
+    data: { session },
+    error
+  } = await client.auth.getSession();
+
+  if (error || !session) {
     window.location.href = "auth.html";
     return false;
   }
 
   currentUser = session.user;
+
   return true;
 }
 
-function timeAgo(dateStr) {
-  const diff = Math.floor((Date.now() - new Date(dateStr)) / 60000);
 
-  if (diff < 1) return "just now";
-  if (diff < 60) return `${diff}m ago`;
-  if (diff < 1440) return `${Math.floor(diff / 60)}h ago`;
+// --------------------------------------------------
+// TIME FORMAT
+// --------------------------------------------------
 
-  const days = Math.floor(diff / 1440);
-  if (days < 7) return `${days}d ago`;
+function formatAlertTime(dateString) {
 
-  return new Date(dateStr).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric"
+  const date = new Date(dateString);
+  const now = new Date();
+
+  const diff = Math.floor((now - date) / 1000);
+
+  if (diff < 60) {
+    return "Just now";
+  }
+
+  if (diff < 3600) {
+    const minutes = Math.floor(diff / 60);
+    return `${minutes}m ago`;
+  }
+
+  if (diff < 86400) {
+    const hours = Math.floor(diff / 3600);
+    return `${hours}h ago`;
+  }
+
+  if (diff < 604800) {
+    const days = Math.floor(diff / 86400);
+    return `${days}d ago`;
+  }
+
+  return date.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short"
   });
 }
 
-async function loadAlerts() {
 
-  const { data: alerts, error } = await client
-    .from("response_acknowledgments")
-    .select(`
-      id,
-      created_at,
-      responses (
-        id
-      )
-    `)
-    .eq("responder_id", currentUser.id)
-    .order("created_at", { ascending: false });
+// --------------------------------------------------
+// ICON
+// --------------------------------------------------
 
-  if (error) {
-    console.error(error);
-    return;
+function getAlertIcon(type) {
+
+  if (type === "stay") {
+    return "🌿";
   }
+
+  if (type === "hold") {
+    return "🤍";
+  }
+
+  if (type === "written") {
+    return "✦";
+  }
+
+  return "🌿";
+}
+
+
+// --------------------------------------------------
+// LOAD ALERTS
+// --------------------------------------------------
+
+async function loadAlerts() {
 
   alertsList.innerHTML = "";
 
-  if (!alerts?.length) {
+  const {
+    data: notifications,
+    error
+  } = await client
+    .from("notifications")
+    .select(`
+      id,
+      post_id,
+      response_id,
+      type,
+      message,
+      is_read,
+      created_at
+    `)
+    .eq("recipient_anon_id", currentUser.id)
+    .order("created_at", { ascending: false });
+
+  console.log("Logged-in user ID:", currentUser.id);
+console.log("Notifications returned:", notifications);
+console.log("Notification error:", error);
+
+if (error) {
+  console.error("Error loading notifications:", error);
+  return;
+}
+
+  if (!notifications || notifications.length === 0) {
     emptyState.classList.remove("hidden");
     return;
   }
 
   emptyState.classList.add("hidden");
 
-  alerts.forEach(alert => {
+  notifications.forEach(notification => {
 
     const card = document.createElement("div");
+
     card.className = "alert-card";
 
+    if (!notification.is_read) {
+      card.classList.add("unread");
+    }
+
+    card.dataset.notificationId = notification.id;
+
     card.innerHTML = `
-      <div class="alert-icon">🌿</div>
+      <div class="alert-icon">
+        ${getAlertIcon(notification.type)}
+      </div>
 
       <div class="alert-content">
-        <h3>Your words were received.</h3>
 
-        <p>Someone appreciated that you showed up for their story.</p>
+        <strong>
+          ${escapeHtml(notification.message)}
+        </strong>
 
-        <span class="alert-time">${timeAgo(alert.created_at)}</span>
+        <div class="alert-time">
+          ${formatAlertTime(notification.created_at)}
+        </div>
+
       </div>
     `;
 
-    alertsList.appendChild(card);
-
-    requestAnimationFrame(() => {
-      card.classList.add("show");
+    card.addEventListener("click", () => {
+      markAsRead(notification.id, card);
     });
 
+    alertsList.appendChild(card);
   });
-
 }
 
-(async () => {
-  if (await requireAuth()) {
-    await loadAlerts();
+
+// --------------------------------------------------
+// MARK AS READ
+// --------------------------------------------------
+
+async function markAsRead(notificationId, card) {
+
+  if (!card.classList.contains("unread")) {
+    return;
   }
+
+  card.classList.remove("unread");
+
+  const { error } = await client
+    .from("notifications")
+    .update({
+      is_read: true
+    })
+    .eq("id", notificationId)
+    .eq("recipient_anon_id", currentUser.id);
+
+  if (error) {
+    console.error("Error marking notification as read:", error);
+
+    // Put the unread state back if the update failed.
+    card.classList.add("unread");
+  }
+}
+
+
+// --------------------------------------------------
+// ESCAPE HTML
+// --------------------------------------------------
+
+function escapeHtml(value) {
+
+  const div = document.createElement("div");
+
+  div.textContent = value ?? "";
+
+  return div.innerHTML;
+}
+
+
+// --------------------------------------------------
+// INIT
+// --------------------------------------------------
+
+(async () => {
+
+  const authenticated = await requireAuth();
+
+  if (!authenticated) {
+    return;
+  }
+
+  await loadAlerts();
+
 })();

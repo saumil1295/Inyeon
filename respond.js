@@ -29,6 +29,7 @@ function getMomentType() {
 }
 
 const draftPostId = params.get("post");
+let draftPostLoaded = false;
 
 document.getElementById("menuBtn").addEventListener("click", () => {
   document.getElementById("menuDropdown").classList.toggle("hidden");
@@ -42,6 +43,7 @@ document.getElementById("menuSignOut").addEventListener("click", async (e) => {
 
 let currentUser = null;
 let currentProfile = null;
+let currentSession = null;
 
 async function requireAuth() {
   const {
@@ -53,6 +55,7 @@ async function requireAuth() {
     return false;
   }
 
+  currentSession = session;
   currentUser = session.user;
 
   const { data: profile } = await client
@@ -186,6 +189,18 @@ const toast = document.getElementById("toast");
 let toastTimer = null;
 
 let currentPost = null;
+
+// Response Safety Check
+const responseSafetyCheck = document.getElementById("responseSafetyCheck");
+const responseSafetyTitle = document.getElementById("responseSafetyTitle");
+const responseSafetyText = document.getElementById("responseSafetyText");
+const responseSafetyQuestion = document.getElementById("responseSafetyQuestion");
+const editResponseBtn = document.getElementById("editResponseBtn");
+const sendAnywayBtn = document.getElementById("sendAnywayBtn");
+
+let pendingResponseText = null;
+let pendingResponsePostId = null;
+let pendingResponseWasWarned = false;
 
 const categoryState = {
   difficult: { currentPost: null },
@@ -544,46 +559,68 @@ async function initData() {
 
 async function fetchNextPost() {
 
-  if (draftPostId) {
+  /*
+   * Direct-post mode
+   * ----------------
+   * If ?post=ID is present, ALWAYS load that exact post.
+   * This is primarily useful for deterministic testing.
+   */
+  if (draftPostId && !draftPostLoaded) {
+
+    draftPostLoaded = true;
 
     const { data, error } = await client
-      .from("posts")
-      .select("*")
-      .eq("id", draftPostId)
-      .maybeSingle();
+  .from("posts")
+  .select("*")
+  .eq("id", Number(draftPostId))
+  .maybeSingle();
 
-    if (!error && data) {
+console.log("DIRECT POST DEBUG:", {
+  requestedId: draftPostId,
+  numericId: Number(draftPostId),
+  data,
+  error
+});
 
-      if (!blockedUserIds.includes(data.anon_id)) {
-
-        return {
-          post: data,
-          options:
-            optionsByCategory[data.moment_type] || []
-        };
-
-      }
-
+    if (error) {
+      console.error("Direct post load failed:", error);
+      return null;
     }
 
+    if (!data) {
+      console.error("Direct post not found:", draftPostId);
+      return null;
+    }
+
+    console.log("DIRECT TEST POST LOADED:", data.id);
+
+    return {
+      post: data,
+      options:
+        optionsByCategory[data.moment_type] || []
+    };
   }
+
+  /*
+   * Normal randomized feed
+   */
 
   const seenPosts = getSeenPosts();
 
-const excludedIds = [
-  ...respondedPostIds,
-  ...skippedPostIds,
-  ...seenPosts
-];
+  const excludedIds = [
+    ...respondedPostIds,
+    ...skippedPostIds,
+    ...seenPosts
+  ];
 
   let query = client
-  .from("posts")
-  .select("*")
-  .eq("status", "Active")
-  .eq("moment_type", getMomentType())
-  .is("deleted_at", null)
-  .neq("anon_id", currentUser.id)
-  .limit(100);
+    .from("posts")
+    .select("*")
+    .eq("status", "Active")
+    .eq("moment_type", getMomentType())
+    .is("deleted_at", null)
+    .neq("anon_id", currentUser.id)
+    .limit(100);
 
   if (blockedUserIds.length > 0) {
 
@@ -597,13 +634,13 @@ const excludedIds = [
 
   if (excludedIds.length > 0) {
 
-  query = query.not(
-    "id",
-    "in",
-    `(${excludedIds.join(",")})`
-  );
+    query = query.not(
+      "id",
+      "in",
+      `(${excludedIds.join(",")})`
+    );
 
-}
+  }
 
   let { data: posts, error } = await query;
 
@@ -614,80 +651,57 @@ const excludedIds = [
 
   if ((!posts || posts.length === 0) && skippedPostIds.length) {
 
-  skippedPostIds.length = 0;
+    skippedPostIds.length = 0;
 
-  let retryQuery = client
-    .from("posts")
-    .select("*")
-    .eq("status", "Active")
-    .eq("moment_type", getMomentType())
-    .is("deleted_at", null)
-    .neq("anon_id", currentUser.id)
-    .limit(100);
+    let retryQuery = client
+      .from("posts")
+      .select("*")
+      .eq("status", "Active")
+      .eq("moment_type", getMomentType())
+      .is("deleted_at", null)
+      .neq("anon_id", currentUser.id)
+      .limit(100);
 
-  if (blockedUserIds.length > 0) {
-    retryQuery = retryQuery.not(
-      "anon_id",
-      "in",
-      `(${blockedUserIds.join(",")})`
-    );
+    if (blockedUserIds.length > 0) {
+
+      retryQuery = retryQuery.not(
+        "anon_id",
+        "in",
+        `(${blockedUserIds.join(",")})`
+      );
+
+    }
+
+    if (respondedPostIds.length) {
+
+      retryQuery = retryQuery.not(
+        "id",
+        "in",
+        `(${respondedPostIds.join(",")})`
+      );
+
+    }
+
+    const retryResult = await retryQuery;
+
+    posts = retryResult.data || [];
   }
 
-  if (respondedPostIds.length) {
-    retryQuery = retryQuery.not(
-      "id",
-      "in",
-      `(${respondedPostIds.join(",")})`
-    );
+  if (!posts || posts.length === 0) {
+
+    clearSeenPosts();
+
+    return null;
   }
 
-  const retryResult = await retryQuery;
-  posts = retryResult.data || [];
-}
+  const randomPost =
+    posts[Math.floor(Math.random() * posts.length)];
 
-/* Feed exhausted → clear session memory and reshuffle */
-
-if (!posts || posts.length === 0) {
-
-  clearSeenPosts();
-
-  let resetQuery = client
-    .from("posts")
-    .select("*")
-    .eq("status", "Active")
-    .eq("moment_type", getMomentType())
-    .is("deleted_at", null)
-    .neq("anon_id", currentUser.id)
-    .limit(100);
-
-  if (blockedUserIds.length > 0) {
-    resetQuery = resetQuery.not(
-      "anon_id",
-      "in",
-      `(${blockedUserIds.join(",")})`
-    );
-  }
-
-  if (respondedPostIds.length) {
-    resetQuery = resetQuery.not(
-      "id",
-      "in",
-      `(${respondedPostIds.join(",")})`
-    );
-  }
-
-  const resetResult = await resetQuery;
-  posts = resetResult.data || [];
-
-  if (!posts.length) return null;
-}
-
-const post = posts[Math.floor(Math.random() * posts.length)];
-
-return {
-  post,
-  options: optionsByCategory[getMomentType()] || []
-};
+  return {
+    post: randomPost,
+    options:
+      optionsByCategory[randomPost.moment_type] || []
+  };
 
 }
 
@@ -947,14 +961,16 @@ updateSaveState(post.id);
   });
 
   document
-    .getElementById("holdSpaceBtn")
-    ?.addEventListener("click", () => {
+  .getElementById("holdSpaceBtn")
+  ?.addEventListener("click", () => {
 
-      sendPresetResponse(
-        "🌿 I'm holding space with you."
-      );
+    sendPresetResponse(
+      "🌿 I'm holding space with you.",
+      null,
+      "hold"
+    );
 
-    });
+  });
 
   document
     .querySelectorAll("#presetButtons .response-btn")
@@ -1129,23 +1145,501 @@ async function checkRateLimit(userId) {
 }
 
 /* -----------------------------
-   Success modal
+   Daily Recognition
 ----------------------------- */
 
-function showConfirmationAndAdvance() {
+function getTodayKey() {
+  const now = new Date();
 
-  const modal = document.getElementById("responseModal");
+  return [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0")
+  ].join("-");
+}
+
+function shouldShowRecognition(type) {
+
+  const today = getTodayKey();
+
+  if (type === "written") {
+
+    return (
+      localStorage.getItem("inyeon_written_recognition") !== today
+    );
+
+  }
+
+  if (type === "hold") {
+
+    return (
+      localStorage.getItem("inyeon_hold_recognition") !== today
+    );
+
+  }
+
+  return false;
+}
+
+
+function markRecognitionShown(type) {
+
+  const today = getTodayKey();
+
+  if (type === "written") {
+
+    localStorage.setItem(
+      "inyeon_written_recognition",
+      today
+    );
+
+  }
+
+  if (type === "hold") {
+
+    localStorage.setItem(
+      "inyeon_hold_recognition",
+      today
+    );
+
+  }
+}
+
+function showRecognition(type) {
+
+  const modal =
+    document.getElementById("recognitionModal");
+
+  const title =
+    document.getElementById("recognitionTitle");
+
+  const text =
+    document.getElementById("recognitionText");
+
+  if (!modal || !title || !text) {
+
+    animateToNextPost();
+
+    return;
+
+  }
+
+  if (type === "written") {
+
+    title.textContent =
+      "You carried someone's thoughts today.";
+
+    text.textContent =
+      "You took a moment to listen when someone needed to be heard.";
+
+  }
+
+  if (type === "hold") {
+
+    title.textContent =
+      "You held space for someone today.";
+
+    text.textContent =
+      "Sometimes, being there is enough.";
+
+  }
+
+  /*
+   * Mark BEFORE displaying the popup.
+   * This prevents the same recognition
+   * from being shown again immediately.
+   */
+
+  markRecognitionShown(type);
 
   modal.classList.remove("hidden");
+}
+
+let recognitionAdvanceTimer = null;
+
+function hideRecognitionAndAdvance() {
+
+  clearTimeout(recognitionAdvanceTimer);
+
+  const modal =
+    document.getElementById("recognitionModal");
+
+  modal?.classList.add("hidden");
+
+  animateToNextPost();
+}
+
+function showConfirmationAndAdvance(type = "normal") {
+
+  /*
+   * First written response of the day
+   * gets the full recognition moment.
+   */
+  if (
+    type === "written" &&
+    shouldShowRecognition("written")
+  ) {
+
+    showRecognition("written");
+
+    return;
+  }
+
+  /*
+   * First Hold Space of the day
+   * gets the full recognition moment.
+   */
+  if (
+    type === "hold" &&
+    shouldShowRecognition("hold")
+  ) {
+
+    showRecognition("hold");
+
+    return;
+  }
+
+  /*
+   * Hold Space after the first one:
+   * no confirmation — move directly
+   * to the next post.
+   */
+  if (type === "hold") {
+
+    animateToNextPost();
+
+    return;
+  }
+
+  /*
+   * Written responses after the first one,
+   * and preset responses, get the small
+   * floating confirmation.
+   */
+
+  const toast =
+    document.getElementById("heldSpaceToast");
+
+  if (!toast) {
+
+    animateToNextPost();
+
+    return;
+
+  }
+
+  toast.classList.remove("hidden");
 
   setTimeout(() => {
 
-    modal.classList.add("hidden");
+    toast.classList.add("hidden");
 
     animateToNextPost();
 
   }, 1600);
+}
 
+document
+  .getElementById("recognitionNextBtn")
+  ?.addEventListener(
+    "click",
+    hideRecognitionAndAdvance
+  );
+
+/* -----------------------------
+   Response Safety Check
+----------------------------- */
+
+async function checkResponseSafety(responseText, postText) {
+
+  try {
+
+    if (!currentSession?.access_token) {
+
+      console.error(
+        "Safety check failed: no authenticated session."
+      );
+
+      return null;
+    }
+
+    const response = await fetch(
+      "https://fjgshtktadaddwmshugw.supabase.co/functions/v1/check-response-safety",
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+
+          "apikey": SUPABASE_ANON_KEY,
+
+          "Authorization":
+            `Bearer ${currentSession.access_token}`
+        },
+
+        body: JSON.stringify({
+          response: responseText,
+          post: postText
+        })
+      }
+    );
+
+    if (!response.ok) {
+
+      const errorText =
+        await response.text();
+
+      console.error(
+        "Safety check failed:",
+        response.status,
+        errorText
+      );
+
+      return null;
+    }
+
+    const result =
+      await response.json();
+
+    console.log(
+      "Response Safety Worker result:",
+      result
+    );
+
+    /*
+     * The worker now returns the complete
+     * interpretation needed by the
+     * Response Decision Engine.
+     */
+
+    return result;
+
+  } catch (error) {
+
+    console.error(
+      "Safety check error:",
+      error
+    );
+
+    return null;
+  }
+}
+
+async function checkResponseDecision(
+  responseText,
+  postText,
+  safetyResult
+) {
+
+  try {
+
+    if (!currentSession?.access_token) {
+
+      console.error(
+        "Decision check failed: no authenticated session."
+      );
+
+      return null;
+    }
+
+    const response = await fetch(
+      "https://fjgshtktadaddwmshugw.supabase.co/functions/v1/response-decision-engine",
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+
+          "apikey": SUPABASE_ANON_KEY,
+
+          "Authorization":
+            `Bearer ${currentSession.access_token}`
+        },
+
+        body: JSON.stringify({
+
+          post: postText,
+
+          response: responseText,
+
+          safe: safetyResult.safe,
+
+          category: safetyResult.category,
+
+          severity: safetyResult.severity,
+
+          intent: safetyResult.intent,
+
+          target: safetyResult.target,
+
+          actionability:
+            safetyResult.actionability,
+
+          confidence:
+            safetyResult.confidence,
+
+          reason:
+            safetyResult.reason
+
+        })
+      }
+    );
+
+    if (!response.ok) {
+
+      const errorText =
+        await response.text();
+
+      console.error(
+        "Decision Engine failed:",
+        response.status,
+        errorText
+      );
+
+      return null;
+    }
+
+    const result =
+      await response.json();
+
+    console.log(
+      "Response Decision Engine result:",
+      result
+    );
+
+    return result;
+
+  } catch (error) {
+
+    console.error(
+      "Decision Engine error:",
+      error
+    );
+
+    return null;
+  }
+}
+
+function showResponseSafetyPopup(type = "normal") {
+
+  if (!responseSafetyCheck) return;
+
+  if (type === "urgent") {
+
+    if (responseSafetyTitle) {
+      responseSafetyTitle.textContent =
+        "This response could cause serious harm.";
+    }
+
+    if (responseSafetyText) {
+      responseSafetyText.textContent =
+        "This response contains language that could seriously harm or put the person who shared this at risk. Please reconsider sending it.";
+    }
+
+    if (responseSafetyQuestion) {
+      responseSafetyQuestion.textContent =
+        "Please edit your response before sending it.";
+    }
+
+    if (sendAnywayBtn) {
+      sendAnywayBtn.classList.add("hidden");
+      sendAnywayBtn.style.display = "none";
+    }
+
+  } else {
+
+    if (responseSafetyTitle) {
+      responseSafetyTitle.textContent =
+        "Your response may not feel right to them.";
+    }
+
+    if (responseSafetyText) {
+      responseSafetyText.textContent =
+        "This response contains something that could feel uncomfortable, dismissive, or hurtful to the person who shared this.";
+    }
+
+    if (responseSafetyQuestion) {
+      responseSafetyQuestion.textContent =
+        "Do you still want to send it?";
+    }
+
+    if (sendAnywayBtn) {
+      sendAnywayBtn.classList.remove("hidden");
+      sendAnywayBtn.style.display = "";
+    }
+  }
+
+  responseSafetyCheck.classList.remove("hidden");
+  responseSafetyCheck.style.display = "block";
+}
+
+async function recordUrgentModeration(
+  responseText,
+  postId,
+  safetyResult,
+  decisionResult
+) {
+  try {
+    if (!currentSession?.access_token) {
+      console.error(
+        "Urgent moderation failed: no authenticated session."
+      );
+
+      return false;
+    }
+
+    const response = await fetch(
+      "https://fjgshtktadaddwmshugw.supabase.co/functions/v1/record-urgent-response",
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": SUPABASE_ANON_KEY,
+          "Authorization":
+            `Bearer ${currentSession.access_token}`
+        },
+
+        body: JSON.stringify({
+          post_id: postId,
+          response_text: responseText,
+          category: safetyResult.category,
+          severity: safetyResult.severity,
+          decision: decisionResult.decision,
+          reason: safetyResult.reason
+        })
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+
+      console.error(
+        "Urgent moderation recording failed:",
+        response.status,
+        errorText
+      );
+
+      return false;
+    }
+
+    const result = await response.json();
+
+    console.log(
+      "Urgent moderation recorded:",
+      result
+    );
+
+    return true;
+
+  } catch (error) {
+    console.error(
+      "Urgent moderation recording error:",
+      error
+    );
+
+    return false;
+  }
 }
 
 /* -----------------------------
@@ -1154,74 +1648,418 @@ function showConfirmationAndAdvance() {
 
 async function sendFreeTextResponse(responseText) {
 
-  const sendBtn = document.getElementById("sendResponseBtn");
-  const skipBtn = document.getElementById("skipBtn");
+  const sendBtn =
+    document.getElementById("sendResponseBtn");
+
+  const skipBtn =
+    document.getElementById("skipBtn");
 
   sendBtn.disabled = true;
   skipBtn.disabled = true;
 
   document
     .querySelectorAll("#presetButtons .response-btn")
-    .forEach(btn => btn.disabled = true);
+    .forEach(btn => {
+      btn.disabled = true;
+    });
+
+  /* ---------------------------------------------
+     DAILY LIMIT
+  --------------------------------------------- */
 
   if (await checkRateLimit(currentUser.id)) {
 
-    alert("You've reached today's response limit. Come back tomorrow.");
+    alert(
+      "You've reached today's response limit. Come back tomorrow."
+    );
 
     sendBtn.disabled = false;
     skipBtn.disabled = false;
 
     document
       .querySelectorAll("#presetButtons .response-btn")
-      .forEach(btn => btn.disabled = false);
+      .forEach(btn => {
+        btn.disabled = false;
+      });
 
     return;
-
   }
 
-  const isCrisis = detectCrisis(responseText);
+  /* ---------------------------------------------
+     SUBMIT RESPONSE — SERVER CONTROLLED
+  --------------------------------------------- */
 
-  const { error } = await client
-    .from("responses")
-    .insert({
-      post_id: currentPost.id,
-      response_text: responseText,
-      responder_anon_id: currentUser.id,
-      status: isCrisis ? "flagged" : "pending",
-      response_type: "written"
+  let result;
+
+  try {
+
+    const response = await fetch(
+      `${SUPABASE_URL}/functions/v1/submit-response`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": SUPABASE_ANON_KEY,
+          "Authorization":
+            `Bearer ${currentSession.access_token}`
+        },
+
+        body: JSON.stringify({
+          post_id: currentPost.id,
+          response_text: responseText,
+          response_type: "written",
+          send_anyway: false
+        })
+      }
+    );
+
+    result = await response.json();
+
+    console.log(
+      "Submit Response result:",
+      result
+    );
+
+    if (!response.ok) {
+
+      if (result?.code === "ACCOUNT_SUSPENDED") {
+
+        alert(
+          "Your account is temporarily suspended. You can't send responses until your suspension ends."
+        );
+
+      } else {
+
+        alert(
+          "We couldn't complete the response check right now. Please try again."
+        );
+
+      }
+
+      sendBtn.disabled = false;
+      skipBtn.disabled = false;
+
+      document
+        .querySelectorAll("#presetButtons .response-btn")
+        .forEach(btn => {
+          btn.disabled = false;
+        });
+
+      return;
+    }
+
+  } catch (error) {
+
+    console.error(
+      "Submit response error:",
+      error
+    );
+
+    alert(
+      "We couldn't complete the response check right now. Please try again."
+    );
+
+    sendBtn.disabled = false;
+    skipBtn.disabled = false;
+
+    document
+      .querySelectorAll("#presetButtons .response-btn")
+      .forEach(btn => {
+        btn.disabled = false;
+      });
+
+    return;
+  }
+
+  /* ---------------------------------------------
+     URGENT
+  --------------------------------------------- */
+
+  if (
+    result.backend_action === "urgent"
+  ) {
+
+    pendingResponseText = responseText;
+    pendingResponsePostId = currentPost.id;
+    pendingResponseWasWarned = true;
+
+    showResponseSafetyPopup("urgent");
+
+    sendBtn.disabled = false;
+    skipBtn.disabled = false;
+
+    document
+      .querySelectorAll("#presetButtons .response-btn")
+      .forEach(btn => {
+        btn.disabled = false;
+      });
+
+    return;
+  }
+
+  /* ---------------------------------------------
+     WARNING
+  --------------------------------------------- */
+
+  if (
+    result.backend_action === "withhold"
+  ) {
+
+    pendingResponseText = responseText;
+    pendingResponsePostId = currentPost.id;
+    pendingResponseWasWarned = true;
+
+    showResponseSafetyPopup("normal");
+
+    sendBtn.disabled = false;
+    skipBtn.disabled = false;
+
+    document
+      .querySelectorAll("#presetButtons .response-btn")
+      .forEach(btn => {
+        btn.disabled = false;
+      });
+
+    return;
+  }
+
+  /* ---------------------------------------------
+     PUBLISH
+  --------------------------------------------- */
+
+  if (
+    result.backend_action === "publish" &&
+    result.response_id
+  ) {
+
+    respondedPostIds.push(currentPost.id);
+
+    cancelStay();
+
+    await clearDraft(currentPost.id);
+
+    if (responseSafetyCheck) {
+      responseSafetyCheck.classList.add("hidden");
+      responseSafetyCheck.style.display = "none";
+    }
+
+    pendingResponseText = null;
+    pendingResponsePostId = null;
+    pendingResponseWasWarned = false;
+
+    showConfirmationAndAdvance("written");
+
+    return;
+  }
+
+  /* ---------------------------------------------
+     FAIL CLOSED
+  --------------------------------------------- */
+
+  console.error(
+    "Unexpected submit-response result:",
+    result
+  );
+
+  alert(
+    "We couldn't complete the response check right now. Please try again."
+  );
+
+  sendBtn.disabled = false;
+  skipBtn.disabled = false;
+
+  document
+    .querySelectorAll("#presetButtons .response-btn")
+    .forEach(btn => {
+      btn.disabled = false;
+    });
+}
+
+editResponseBtn?.addEventListener("click", () => {
+
+  if (responseSafetyCheck) {
+    responseSafetyCheck.classList.add("hidden");
+    responseSafetyCheck.style.display = "none";
+  }
+
+ pendingResponseText = null;
+pendingResponsePostId = null;
+pendingResponseWasWarned = false;
+
+if (sendAnywayBtn) {
+  sendAnywayBtn.classList.remove("hidden");
+  sendAnywayBtn.style.display = "";
+}
+
+if (responseSafetyTitle) {
+  responseSafetyTitle.textContent =
+    "Your response may not feel right to them.";
+}
+
+if (responseSafetyText) {
+  responseSafetyText.textContent =
+    "This response contains something that could feel uncomfortable, dismissive, or hurtful to the person who shared this.";
+}
+
+if (responseSafetyQuestion) {
+  responseSafetyQuestion.textContent =
+    "Do you still want to send it?";
+}
+
+  const input = document.getElementById("responseInput");
+
+  if (input) {
+    input.focus();
+    input.setSelectionRange(
+      input.value.length,
+      input.value.length
+    );
+  }
+
+});
+
+sendAnywayBtn?.addEventListener("click", async () => {
+
+  if (!pendingResponseText || !pendingResponsePostId) {
+    return;
+  }
+
+  const responseText = pendingResponseText;
+
+  if (responseSafetyCheck) {
+    responseSafetyCheck.classList.add("hidden");
+    responseSafetyCheck.style.display = "none";
+  }
+
+  pendingResponseText = null;
+  pendingResponsePostId = null;
+  pendingResponseWasWarned = false;
+
+  const sendBtn =
+    document.getElementById("sendResponseBtn");
+
+  const skipBtn =
+    document.getElementById("skipBtn");
+
+  sendBtn.disabled = true;
+  skipBtn.disabled = true;
+
+  document
+    .querySelectorAll("#presetButtons .response-btn")
+    .forEach(btn => {
+      btn.disabled = true;
     });
 
-  if (error) {
+  try {
 
-    console.error(error);
-    alert("Something went wrong. Try again.");
+    const response = await fetch(
+      `${SUPABASE_URL}/functions/v1/submit-response`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": SUPABASE_ANON_KEY,
+          "Authorization":
+            `Bearer ${currentSession.access_token}`
+        },
+
+        body: JSON.stringify({
+          post_id: currentPost.id,
+          response_text: responseText,
+          response_type: "written",
+          send_anyway: true
+        })
+      }
+    );
+
+    const result = await response.json();
+
+    console.log(
+      "Send Anyway result:",
+      result
+    );
+
+    if (!response.ok) {
+
+      if (result?.code === "ACCOUNT_SUSPENDED") {
+
+        alert(
+          "Your account is temporarily suspended. You can't send responses until your suspension ends."
+        );
+
+      } else {
+
+        alert(
+          "Something went wrong. Try again."
+        );
+
+      }
+
+      return;
+    }
+
+    if (
+      result.sent === true &&
+      result.response_id
+    ) {
+
+      respondedPostIds.push(currentPost.id);
+
+      cancelStay();
+
+      await clearDraft(currentPost.id);
+
+      showConfirmationAndAdvance("written");
+
+      return;
+    }
+
+    console.error(
+      "Unexpected Send Anyway result:",
+      result
+    );
+
+    alert(
+      "Something went wrong. Try again."
+    );
+
+  } catch (error) {
+
+    console.error(
+      "Send Anyway error:",
+      error
+    );
+
+    alert(
+      "Something went wrong. Try again."
+    );
+
+  } finally {
 
     sendBtn.disabled = false;
     skipBtn.disabled = false;
 
     document
       .querySelectorAll("#presetButtons .response-btn")
-      .forEach(btn => btn.disabled = false);
-
-    return;
+      .forEach(btn => {
+        btn.disabled = false;
+      });
 
   }
 
-  respondedPostIds.push(currentPost.id);
-
-  cancelStay();
-
-  await clearDraft(currentPost.id);
-
-  showConfirmationAndAdvance();
-
-}
+});
 
 /* -----------------------------
    Preset response
 ----------------------------- */
 
-async function sendPresetResponse(responseText, buttonEl) {
+async function sendPresetResponse(
+  responseText,
+  buttonEl,
+  recognitionType = "normal"
+) {
 
   if (buttonEl) {
 
@@ -1241,41 +2079,154 @@ async function sendPresetResponse(responseText, buttonEl) {
 
   }
 
-  document.getElementById("sendResponseBtn").disabled = true;
-  document.getElementById("skipBtn").disabled = true;
+  const sendBtn =
+    document.getElementById("sendResponseBtn");
+
+  const skipBtn =
+    document.getElementById("skipBtn");
+
+  sendBtn.disabled = true;
+  skipBtn.disabled = true;
 
   if (await checkRateLimit(currentUser.id)) {
 
-    alert("You've reached today's response limit. Come back tomorrow.");
-    return;
+    alert(
+      "You've reached today's response limit. Come back tomorrow."
+    );
 
+    sendBtn.disabled = false;
+    skipBtn.disabled = false;
+
+    document
+      .querySelectorAll("#presetButtons .response-btn")
+      .forEach(btn => {
+        btn.style.pointerEvents = "";
+        btn.style.opacity = "";
+      });
+
+    return;
   }
 
-  const { error } = await client
-    .from("responses")
-    .insert({
-      post_id: currentPost.id,
-      response_text: responseText,
-      responder_anon_id: currentUser.id,
-      status: "approved",
-      response_type: "preset"
-    });
+  try {
 
-  if (error) {
+    const response = await fetch(
+      `${SUPABASE_URL}/functions/v1/submit-response`,
+      {
+        method: "POST",
 
-    console.error(error);
-    alert("Something went wrong. Try again.");
-    return;
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": SUPABASE_ANON_KEY,
+          "Authorization":
+            `Bearer ${currentSession.access_token}`
+        },
+
+        body: JSON.stringify({
+          post_id: currentPost.id,
+          response_text: responseText,
+          response_type:
+            recognitionType === "hold"
+              ? "hold"
+              : "preset",
+          send_anyway: false
+        })
+      }
+    );
+
+    const result = await response.json();
+
+    console.log(
+      "Submit preset response result:",
+      result
+    );
+
+    if (!response.ok) {
+
+      if (result?.code === "ACCOUNT_SUSPENDED") {
+
+        alert(
+          "Your account is temporarily suspended. You can't send responses until your suspension ends."
+        );
+
+      } else {
+
+        alert(
+          "Something went wrong. Try again."
+        );
+
+      }
+
+      return;
+    }
+
+    if (
+      result.backend_action === "publish" &&
+      result.response_id
+    ) {
+
+      respondedPostIds.push(currentPost.id);
+
+      cancelStay();
+
+      await clearDraft(currentPost.id);
+
+      showConfirmationAndAdvance(
+        recognitionType
+      );
+
+      return;
+    }
+
+    if (
+      result.backend_action === "withhold" ||
+      result.backend_action === "urgent"
+    ) {
+
+      console.error(
+        "Preset response was moderated:",
+        result
+      );
+
+      alert(
+        "This response couldn't be sent. Please try another response."
+      );
+
+      return;
+    }
+
+    console.error(
+      "Unexpected preset response result:",
+      result
+    );
+
+    alert(
+      "Something went wrong. Try again."
+    );
+
+  } catch (error) {
+
+    console.error(
+      "Preset response submission error:",
+      error
+    );
+
+    alert(
+      "Something went wrong. Try again."
+    );
+
+  } finally {
+
+    sendBtn.disabled = false;
+    skipBtn.disabled = false;
+
+    document
+      .querySelectorAll("#presetButtons .response-btn")
+      .forEach(btn => {
+        btn.style.pointerEvents = "";
+        btn.style.opacity = "";
+      });
 
   }
-
-  respondedPostIds.push(currentPost.id);
-
-  cancelStay();
-
-  await clearDraft(currentPost.id);
-
-  showConfirmationAndAdvance();
 
 }
 

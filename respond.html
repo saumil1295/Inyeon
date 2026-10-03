@@ -124,6 +124,43 @@
 
   <div id="optionsContainer"></div>
 
+<!-- Response Safety Check -->
+<!-- Response Safety Check -->
+<div id="responseSafetyCheck" class="response-safety-check hidden">
+
+  <div class="safety-dialog">
+
+    <div class="safety-icon">
+      <span>🌿</span>
+    </div>
+
+    <h3 id="responseSafetyTitle">
+      Your response may not feel right to them.
+    </h3>
+
+    <p id="responseSafetyText">
+      This response contains something that could feel uncomfortable,
+      dismissive, or hurtful to the person who shared this.
+    </p>
+
+    <p id="responseSafetyQuestion" class="safety-question">
+      Do you still want to send it?
+    </p>
+
+    <div class="safety-actions">
+
+      <button id="editResponseBtn" class="safety-btn secondary">
+        Edit response
+      </button>
+
+      <button id="sendAnywayBtn" class="safety-btn primary">
+        Send anyway
+      </button>
+
+    </div>
+
+  </div>
+
 </div>
 
     </section>
@@ -155,29 +192,39 @@
 
 </div>
 
-  <!-- Success Modal -->
-  <div id="responseModal" class="response-modal hidden">
+ <!-- Recognition Modal -->
+<div id="recognitionModal" class="response-modal hidden">
 
-    <div class="response-modal-card">
+  <div class="response-modal-card">
 
-      <div class="success-illustration">
-        <div class="success-circle"></div>
-        <div class="success-leaf"></div>
-      </div>
-
-      <h2>You held space.</h2>
-
-      <p>
-        They'll only know someone chose to be here.
-      </p>
-
-      <button id="nextPostBtn" class="next-post-btn pressable">
-        Next post →
-      </button>
-
+    <div class="success-illustration">
+      <div class="success-circle"></div>
+      <div class="success-leaf"></div>
     </div>
 
+    <h2 id="recognitionTitle">
+      You carried someone's thoughts today.
+    </h2>
+
+    <p id="recognitionText">
+      You took a moment to listen when someone needed to be heard.
+    </p>
+
+    <button id="recognitionNextBtn" class="next-post-btn pressable">
+      Hold space for another →
+    </button>
+
   </div>
+
+</div>
+
+<!-- Small response confirmation -->
+<div id="heldSpaceToast" class="held-space-toast hidden">
+  <div class="held-space-toast-title">You held space.</div>
+  <div class="held-space-toast-text">
+    They'll only know someone chose to be here.
+  </div>
+</div>
 
   <!-- Bottom Navigation -->
   <nav id="bottomNav" class="bottom-nav">

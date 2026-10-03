@@ -553,6 +553,7 @@ if (!respondedError && respondedRows) {
   .from("responses")
   .select("*")
   .eq("post_id", post.id)
+  .eq("status", "approved")
   .order("created_at", { ascending: true });
 
 if (blockedUserIds.length) {

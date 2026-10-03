@@ -99,6 +99,25 @@
         Anonymous. No profile. Just a place to be honest.
       </p>
 
+      <div id="draftCard" class="draft-card hidden">
+  <div class="draft-card-top">
+    <div class="draft-card-title-wrap">
+      <div class="draft-card-icon">✍️</div>
+
+      <div>
+        <div class="draft-card-title">Continue writing</div>
+        <div id="draftTime" class="draft-card-time">Saved just now</div>
+      </div>
+    </div>
+
+    <button id="discardDraftBtn" class="draft-discard" type="button">
+      ×
+    </button>
+  </div>
+
+  <p id="draftPreview" class="draft-card-preview"></p>
+</div>
+
       <div class="compose-box">
         <textarea
           id="postText"
@@ -106,6 +125,96 @@
           maxlength="500"></textarea>
 
         <p id="charCount" class="char-count">0 / 500</p>
+
+        <button id="ghostRewriteBtn"
+        class="ghost-rewrite-btn pressable hidden"
+        type="button">
+  ✨ Help me put this into words
+</button>
+
+        <div id="momentSuggestion" class="moment-suggestion hidden">
+
+  <div class="moment-suggestion-top">
+    <span class="moment-ai">✨ Inyeon thinks this feels like a</span>
+    <span id="momentLabel" class="moment-chip">Heavier moment</span>
+  </div>
+
+  <p class="moment-helper">
+    You can change this if it doesn't feel right.
+  </p>
+
+  <div id="momentActions" class="moment-actions">
+
+  <button id="momentChange"
+          type="button"
+          class="moment-btn secondary pressable">
+    Change
+  </button>
+
+</div>
+
+  <div id="momentPicker" class="moment-picker hidden">
+
+    <button id="pickHeavier" type="button"
+            class="moment-pill active pressable"
+            data-value="support">
+      Heavier
+    </button>
+
+    <button id="pickLighter" type="button"
+            class="moment-pill pressable"
+            data-value="celebrate">
+      Lighter
+    </button>
+
+  </div>
+
+</div>
+
+
+
+<div id="ghostRewriteModal" class="ghost-modal hidden">
+
+  <div class="ghost-sheet">
+
+    <button id="ghostClose" class="ghost-close">×</button>
+
+    <div class="ghost-header">
+
+      <span class="ghost-icon">✨</span>
+
+      <div>
+        <h3>A gentler way to say it</h3>
+        <p>Same meaning. Different words.</p>
+      </div>
+
+    </div>
+
+    <div id="ghostLoading" class="ghost-loading hidden">
+      Finding another way to say it…
+    </div>
+
+    <div id="ghostResult"
+         class="ghost-result hidden"></div>
+
+    <div id="ghostActions"
+         class="ghost-actions hidden">
+
+      <button id="ghostUse"
+              class="ghost-primary pressable">
+        Use this
+      </button>
+
+      <button id="ghostKeep"
+              class="ghost-secondary pressable">
+        Keep mine
+      </button>
+
+    </div>
+
+  </div>
+
+</div>
       </div>
 
       <button id="submitBtn">Post</button>
@@ -115,6 +224,13 @@
     </div>
 
   </main>
+
+  <div id="draftToast" class="draft-toast hidden">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+    <path d="M20 6L9 17L4 12" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+  <span>Draft saved</span>
+</div>
 
   <nav id="bottomNav" class="bottom-nav hidden">
 
@@ -155,6 +271,69 @@
   </a>
 
 </nav>
+
+<!-- Crisis Post Warning -->
+
+<div id="crisisPostWarning" class="crisis-post-warning hidden">
+
+  <div class="crisis-warning-card">
+
+    <div class="crisis-warning-icon">
+      <span>♡</span>
+    </div>
+
+    <h2>Before you continue</h2>
+
+    <p>
+      <strong>We want to make sure we understand what you mean.</strong>
+    </p>
+
+    <p>
+      Some of the words in your post could be interpreted as harmful or threatening.
+    </p>
+
+    <p class="crisis-warning-question">
+      Could there be context we're missing?
+    </p>
+
+    <p>
+      If you'd like, tell us a little more about what you mean.
+      This can help us understand your post more accurately.
+    </p>
+
+    <div class="crisis-context-field">
+
+      <label for="crisisContext">
+        Context <span>(optional)</span>
+      </label>
+
+      <textarea
+        id="crisisContext"
+        maxlength="500"
+        placeholder="Tell us a little more about what you mean..."
+      ></textarea>
+
+    </div>
+
+    <p class="crisis-warning-note">
+      Your post and any context you provide may be reviewed to help keep Inyeon safe.
+    </p>
+
+    <div class="crisis-warning-actions">
+
+      <button id="crisisGoBackBtn" class="crisis-warning-secondary">
+        Go back
+      </button>
+
+      <button id="crisisContinueBtn" class="crisis-warning-primary">
+        Continue anyway
+      </button>
+
+    </div>
+
+  </div>
+
+</div>
 
   <!-- Existing Post Confirmation Modal -->
 
