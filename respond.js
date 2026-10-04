@@ -46,8 +46,9 @@ let currentProfile = null;
 let currentSession = null;
 
 async function requireAuth() {
+
   const {
-    data: { session },
+    data: { session }
   } = await client.auth.getSession();
 
   if (!session) {
@@ -58,19 +59,57 @@ async function requireAuth() {
   currentSession = session;
   currentUser = session.user;
 
-  const { data: profile } = await client
+  return true;
+}
+
+async function loadProfileInBackground() {
+
+  if (!currentUser?.id) return;
+
+  const { data: profile, error } = await client
     .from("profiles")
     .select("*")
-    .eq("id", session.user.id)
+    .eq("id", currentUser.id)
     .maybeSingle();
 
+  if (error) {
+    console.error("Profile load failed:", error);
+    return;
+  }
+
   if (!profile) {
-    window.location.href = "auth.html";
-    return false;
+    console.error(
+      "Profile not found for authenticated user"
+    );
+    return;
   }
 
   currentProfile = profile;
-  return true;
+}
+
+async function getFreshAccessToken() {
+
+  const {
+    data: {
+      session
+    },
+    error
+  } = await client.auth.refreshSession();
+
+  if (error || !session?.access_token) {
+
+    console.error(
+      "Unable to refresh authentication session:",
+      error
+    );
+
+    return null;
+  }
+
+  currentSession = session;
+  currentUser = session.user;
+
+  return session.access_token;
 }
 
 function detectCrisis(text) {
@@ -119,9 +158,84 @@ function getStayThreshold(text) {
 
 function cancelStay() {
   clearTimeout(stayTimer);
+  clearTimeout(stayEngagementTimer);
+
   stayTimer = null;
+  stayEngagementTimer = null;
+
   activePostId = null;
   stayStartTime = null;
+}
+
+async function qualifyStay(postId) {
+  console.log("QUALIFY STAY CALLED", postId);
+
+  if (!currentUser) {
+    console.log("STAY: no current user");
+    return;
+  }
+
+  if (!postId) {
+    console.log("STAY: no post ID");
+    return;
+  }
+
+  // Check whether this user has already qualified a stay on this post
+  const { data: existingView, error: existingError } = await client
+    .from("views")
+    .select("id, qualified")
+    .eq("post_id", postId)
+    .eq("viewer_id", currentUser.id)
+    .maybeSingle();
+
+  if (existingError) {
+    console.error("STAY CHECK ERROR:", existingError);
+    return;
+  }
+
+  // Already qualified — do nothing
+  if (existingView?.qualified === true) {
+    console.log(`STAY: already qualified for post ${postId}`);
+
+    clearTimeout(stayTimer);
+    clearTimeout(stayEngagementTimer);
+
+    stayTimer = null;
+    stayEngagementTimer = null;
+
+    return;
+  }
+
+  // First qualification
+  const { data, error } = await client
+    .from("views")
+    .upsert(
+      {
+        post_id: postId,
+        viewer_id: currentUser.id,
+        qualified: true
+      },
+      {
+        onConflict: "post_id,viewer_id"
+      }
+    )
+    .select("id, qualified")
+    .single();
+
+  if (error) {
+    console.error("STAY UPSERT ERROR:", error);
+    return;
+  }
+
+  clearTimeout(stayTimer);
+  clearTimeout(stayEngagementTimer);
+
+  stayTimer = null;
+  stayEngagementTimer = null;
+
+  if (data?.qualified) {
+    console.log(`Someone stayed on post ${postId}`);
+  }
 }
 
 async function trackStay(post) {
@@ -139,40 +253,14 @@ async function trackStay(post) {
   stayTimer = setTimeout(async () => {
     if (!isVisible) return;
 
-    const elapsed = (Date.now() - stayStartTime) / 1000;
+    const elapsed =
+      (Date.now() - stayStartTime) / 1000;
 
     if (elapsed < threshold) return;
 
-    const { data: existing, error } = await client
-      .from("views")
-      .select("id,qualified")
-      .eq("post_id", post.id)
-      .eq("viewer_id", currentUser.id)
-      .maybeSingle();
+    await qualifyStay(post.id);
 
-    if (error) {
-      console.error(error);
-      return;
-    }
-
-    if (existing?.qualified) return;
-
-    if (existing) {
-      await client
-        .from("views")
-        .update({ qualified: true })
-        .eq("id", existing.id);
-    } else {
-      await client
-        .from("views")
-        .insert({
-          post_id: post.id,
-          viewer_id: currentUser.id,
-          qualified: true,
-        });
-    }
-
-    console.log(`Someone stayed on post ${post.id}`);
+    stayTimer = null;
   }, threshold * 1000);
 }
 
@@ -202,82 +290,335 @@ let pendingResponseText = null;
 let pendingResponsePostId = null;
 let pendingResponseWasWarned = false;
 
+let responseSafetyPopupMode = "normal";
+
 const categoryState = {
   difficult: { currentPost: null },
   light: { currentPost: null }
 };
 
+const nextPostCache = {
+  difficult: null,
+  light: null
+};
+
+const nextPostPreloading = {
+  difficult: false,
+  light: false
+};
+
 let respondedPostIds = [];
 let blockedUserIds = [];
 let optionsByCategory = {};
-const skippedPostIds = [];
+let cachedDraftPostIds = [];
+let savedPostIds = new Set();
+
+const feedPostCache = new Map();
+
+const skippedPostHydration = {
+  difficult: null,
+  light: null
+};
 
 let stayTimer = null;
+let stayEngagementTimer = null;
 let activePostId = null;
 let stayStartTime = null;
 let isVisible = true;
 
 /* -----------------------------
-   Fresh Feed Memory
+   Personal Feed Queue
 ----------------------------- */
 
-const FEED_MEMORY_LIMIT = 30;
-const FEED_MEMORY_HOURS = 24;
+const FEED_QUEUE_LIMIT = 30;
+const FEED_QUEUE_REFILL_THRESHOLD = 5;
+const FEED_FETCH_BATCH_SIZE = 20;
+const FEED_QUEUE_HOURS = 24;
 
-function getFeedKey(){
-  return `seenPosts_${selectedCategory}`;
+function getFeedQueueKey(category = selectedCategory) {
+
+  if (!currentUser?.id) return null;
+
+  return `feedQueue_${currentUser.id}_${category}`;
+
 }
 
-function getSeenPosts(){
+function getFeedQueue(category = selectedCategory) {
 
-  try{
+  const key = getFeedQueueKey(category);
 
-    const stored = JSON.parse(localStorage.getItem(getFeedKey()));
+  if (!key) {
+    return {
+      active: [],
+      skipped: []
+    };
+  }
 
-    if(!stored) return [];
+  try {
+
+    const stored = JSON.parse(
+      localStorage.getItem(key)
+    );
+
+    if (!stored) {
+      return {
+        active: [],
+        skipped: []
+      };
+    }
 
     const age =
       Date.now() - stored.timestamp;
 
-    if(age > FEED_MEMORY_HOURS * 60 * 60 * 1000){
+    if (
+      age >
+      FEED_QUEUE_HOURS * 60 * 60 * 1000
+    ) {
 
-      localStorage.removeItem(getFeedKey());
-      return [];
+      localStorage.removeItem(key);
+
+      return {
+        active: [],
+        skipped: []
+      };
 
     }
 
-    return stored.posts || [];
+    /*
+     * New queue format:
+     *
+     * active: posts the user has not skipped
+     * skipped: posts deliberately skipped by the user
+     *
+     * This guarantees skipped posts remain
+     * behind all active posts.
+     */
 
-  }catch{
+    if (
+      Array.isArray(stored.active) &&
+      Array.isArray(stored.skipped)
+    ) {
 
-    return [];
+      return {
+        active: stored.active,
+        skipped: stored.skipped
+      };
+
+    }
+
+    /*
+     * Convert the old flat queue format
+     * into the new active queue format.
+     */
+
+    if (Array.isArray(stored.queue)) {
+
+      return {
+        active: stored.queue,
+        skipped: []
+      };
+
+    }
+
+    return {
+      active: [],
+      skipped: []
+    };
+
+  } catch {
+
+    return {
+      active: [],
+      skipped: []
+    };
 
   }
 
 }
 
-function rememberPost(postId){
+function saveFeedQueue(
+  queue,
+  category = selectedCategory
+) {
 
-  const seen = getSeenPosts();
+  const key = getFeedQueueKey(category);
 
-  seen.unshift(postId);
+  if (!key) return;
 
-  const unique =
-    [...new Set(seen)].slice(0, FEED_MEMORY_LIMIT);
+  const active = [
+    ...new Set(
+      queue.active.map(Number)
+    )
+  ].slice(0, FEED_QUEUE_LIMIT);
+
+  const skipped = [
+    ...new Set(
+      queue.skipped.map(Number)
+    )
+  ].slice(0, FEED_QUEUE_LIMIT);
 
   localStorage.setItem(
-    getFeedKey(),
+    key,
     JSON.stringify({
-      posts: unique,
+      active,
+      skipped,
       timestamp: Date.now()
     })
   );
 
 }
 
-function clearSeenPosts(){
+function clearFeedQueue(
+  category = selectedCategory
+) {
 
-  localStorage.removeItem(getFeedKey());
+  const key = getFeedQueueKey(category);
+
+  if (!key) return;
+
+  localStorage.removeItem(key);
+
+}
+
+/*
+ * Add newly discovered posts to the ACTIVE queue.
+ *
+ * New posts always go after existing active posts,
+ * but BEFORE skipped posts.
+ */
+function addPostsToQueue(
+  postIds,
+  category = selectedCategory
+) {
+
+  const queue = getFeedQueue(category);
+
+  const existing = new Set([
+    ...queue.active,
+    ...queue.skipped
+  ]);
+
+  postIds.forEach(id => {
+
+    const numericId = Number(id);
+
+    if (!existing.has(numericId)) {
+
+      queue.active.push(numericId);
+      existing.add(numericId);
+
+    }
+
+  });
+
+  console.log(
+  "QUEUE ADD:",
+  "adding =", postIds.length,
+  "active before save =", queue.active.length,
+  "skipped =", queue.skipped.length
+);
+
+  saveFeedQueue(queue, category);
+
+}
+
+/*
+ * When a user skips a post:
+ *
+ * ACTIVE:
+ * [A, B, C, D]
+ *
+ * Skip B
+ *
+ * ACTIVE:
+ * [A, C, D]
+ *
+ * SKIPPED:
+ * [B]
+ *
+ * This guarantees B stays behind all
+ * non-skipped posts.
+ */
+function movePostToBack(
+  postId,
+  category = selectedCategory
+) {
+
+  const queue = getFeedQueue(category);
+
+  const numericId = Number(postId);
+
+  queue.active = queue.active.filter(
+    id => Number(id) !== numericId
+  );
+
+  queue.skipped = queue.skipped.filter(
+    id => Number(id) !== numericId
+  );
+
+  queue.skipped.push(numericId);
+
+  saveFeedQueue(queue, category);
+
+}
+
+/*
+ * Remove a post completely from the queue.
+ *
+ * Used when the user has responded to it.
+ */
+function removePostFromQueue(
+  postId,
+  category = selectedCategory
+) {
+
+  const queue = getFeedQueue(category);
+
+  const numericId = Number(postId);
+
+  queue.active = queue.active.filter(
+    id => Number(id) !== numericId
+  );
+
+  queue.skipped = queue.skipped.filter(
+    id => Number(id) !== numericId
+  );
+
+  saveFeedQueue(queue, category);
+
+}
+
+/*
+ * Remove all posts the user has already
+ * responded to.
+ */
+function removeRespondedPostsFromQueue(
+  category = selectedCategory
+) {
+
+  const queue = getFeedQueue(category);
+
+  if (!respondedPostIds.length) return;
+
+  const responded = new Set(
+    respondedPostIds.map(Number)
+  );
+
+  queue.active = queue.active.filter(
+    id => !responded.has(Number(id))
+  );
+
+  queue.skipped = queue.skipped.filter(
+    id => !responded.has(Number(id))
+  );
+
+  console.log(
+  "QUEUE REMOVE RESPONDED:",
+  "active after removal =", queue.active.length,
+  "skipped =", queue.skipped.length
+);
+
+  saveFeedQueue(queue, category);
 
 }
 
@@ -486,84 +827,415 @@ function hideEmptyResponsePopup(){
 
 }
 
-async function initData() {
-  const [
-    responsesResult,
-    optionsResult,
-    blockedResult,
-    blockedByResult
-  ] = await Promise.all([
+async function initCriticalFeedData() {
 
-    client
+  console.log(
+    "CRITICAL: startup filter loading started"
+  );
+
+  /*
+   * These are all background-only.
+   *
+   * Nothing here should delay the first feed request.
+   */
+
+  const responsesPromise = (async () => {
+
+    const start = performance.now();
+
+    const result = await client
       .from("responses")
       .select("post_id")
-      .eq("responder_anon_id", currentUser.id),
+      .eq("responder_anon_id", currentUser.id);
 
-    client
-      .from("response_options")
-      .select("*"),
+    console.log(
+      "BACKGROUND: responses finished",
+      Math.round(performance.now() - start),
+      "ms"
+    );
 
-    client
+    if (!result.error) {
+
+      respondedPostIds =
+        (result.data || []).map(
+          r => r.post_id
+        );
+
+      removeRespondedPostsFromQueue();
+
+    } else {
+
+      console.error(
+        "Failed to load responded posts:",
+        result.error
+      );
+
+    }
+
+  })();
+
+  const draftsPromise = (async () => {
+
+    const start = performance.now();
+
+    const result =
+      await getDraftPostIds();
+
+    console.log(
+      "BACKGROUND: drafts finished",
+      Math.round(performance.now() - start),
+      "ms"
+    );
+
+    cachedDraftPostIds =
+      result || [];
+
+    removeDraftPostsFromQueue(
+      cachedDraftPostIds
+    );
+
+  })();
+
+    const savedPostsPromise = (async () => {
+
+    const start = performance.now();
+
+    const result = await client
+      .from("saved_posts")
+      .select("post_id")
+      .eq("user_id", currentUser.id);
+
+    console.log(
+      "BACKGROUND: saved posts finished",
+      Math.round(performance.now() - start),
+      "ms"
+    );
+
+    if (!result.error) {
+
+      savedPostIds = new Set(
+        (result.data || []).map(
+          row => Number(row.post_id)
+        )
+      );
+
+    } else {
+
+      console.error(
+        "Failed to load saved posts:",
+        result.error
+      );
+
+    }
+
+  })();
+
+  const blockedPromise = (async () => {
+
+    const start = performance.now();
+
+    const result = await client
       .from("response_reports")
       .select("reported_user_id")
-      .eq("reporter_id", currentUser.id),
+      .eq("reporter_id", currentUser.id);
 
-    client
+    console.log(
+      "BACKGROUND: blocked finished",
+      Math.round(performance.now() - start),
+      "ms"
+    );
+
+    return result;
+
+  })();
+
+  const blockedByPromise = (async () => {
+
+    const start = performance.now();
+
+    const result = await client
       .from("response_reports")
       .select("reporter_id")
-      .eq("reported_user_id", currentUser.id)
+      .eq("reported_user_id", currentUser.id);
 
-  ]);
+    console.log(
+      "BACKGROUND: blockedBy finished",
+      Math.round(performance.now() - start),
+      "ms"
+    );
 
-  if (responsesResult.error) {
-    console.error(responsesResult.error);
-  } else {
-    respondedPostIds = responsesResult.data.map(r => r.post_id);
+    return result;
+
+  })();
+
+  /*
+   * Build the blocked-user list once those two
+   * background queries finish.
+   */
+
+  Promise.all([
+    blockedPromise,
+    blockedByPromise
+  ]).then(
+    ([
+      blockedResult,
+      blockedByResult
+    ]) => {
+
+      const peopleIReported =
+        (blockedResult?.data || [])
+          .map(r => r.reported_user_id);
+
+      const peopleWhoReportedMe =
+        (blockedByResult?.data || [])
+          .map(r => r.reporter_id);
+
+      blockedUserIds = [
+        ...new Set([
+          ...peopleIReported,
+          ...peopleWhoReportedMe
+        ].filter(Boolean))
+      ];
+
+      console.log(
+        "BACKGROUND: blocked users ready",
+        blockedUserIds.length
+      );
+
+    }
+  );
+
+  /*
+   * IMPORTANT:
+   *
+   * Do not await any of the above.
+   *
+   * The first feed request can start immediately.
+   */
+
+  return [];
+}
+
+async function initNonCriticalData() {
+
+  const { data, error } = await client
+    .from("response_options")
+    .select("*");
+
+  if (error) {
+
+    console.error(
+      "Response options load failed:",
+      error
+    );
+
+    return;
   }
 
-  const peopleIReported =
-    (blockedResult?.data || []).map(r => r.reported_user_id);
+  optionsByCategory = {};
 
-  const peopleWhoReportedMe =
-    (blockedByResult?.data || []).map(r => r.reporter_id);
+  data.forEach(opt => {
 
-  blockedUserIds = [
-    ...new Set([
-      ...peopleIReported,
-      ...peopleWhoReportedMe
-    ].filter(Boolean))
-  ];
+    if (!optionsByCategory[opt.need_category]) {
+      optionsByCategory[opt.need_category] = [];
+    }
 
-  if (optionsResult.error) {
-    console.error(optionsResult.error);
-  } else {
+    optionsByCategory[
+      opt.need_category
+    ].push(opt);
 
-    optionsByCategory = {};
+  });
+}
 
-    optionsResult.data.forEach(opt => {
+async function loadProfileInBackground() {
 
-      if (!optionsByCategory[opt.need_category]) {
-        optionsByCategory[opt.need_category] = [];
+  if (!currentUser?.id) return;
+
+  const { data: profile, error } = await client
+    .from("profiles")
+    .select("*")
+    .eq("id", currentUser.id)
+    .maybeSingle();
+
+  if (error) {
+    console.error(
+      "Profile load failed:",
+      error
+    );
+    return;
+  }
+
+  if (!profile) {
+    console.error(
+      "Profile not found for authenticated user"
+    );
+    return;
+  }
+
+  currentProfile = profile;
+}
+
+async function getDraftPostIds() {
+
+  if (!currentUser?.id) return [];
+
+  const { data, error } = await client
+    .from("response_drafts")
+    .select("post_id")
+    .eq("responder_anon_id", currentUser.id);
+
+  if (error) {
+
+    console.error(
+      "Failed to load draft post IDs:",
+      error
+    );
+
+    return [];
+
+  }
+
+  return (data || [])
+    .map(row => Number(row.post_id))
+    .filter(Boolean);
+
+}
+
+function removeDraftPostsFromQueue(
+  draftPostIds,
+  category = selectedCategory
+) {
+
+  if (!draftPostIds.length) return;
+
+  const queue = getFeedQueue(category);
+
+  const draftIds = new Set(
+    draftPostIds.map(Number)
+  );
+
+  queue.active = queue.active.filter(
+    id => !draftIds.has(Number(id))
+  );
+
+  queue.skipped = queue.skipped.filter(
+    id => !draftIds.has(Number(id))
+  );
+
+  console.log(
+  "QUEUE REMOVE DRAFTS:",
+  "active after removal =", queue.active.length,
+  "skipped =", queue.skipped.length
+);
+
+  saveFeedQueue(queue, category);
+
+}
+
+async function hydrateSkippedPosts(
+  category = selectedCategory,
+  limit = FEED_QUEUE_LIMIT
+) {
+
+  if (skippedPostHydration[category]) {
+    return skippedPostHydration[category];
+  }
+
+  const queue = getFeedQueue(category);
+
+  const missingIds = queue.skipped
+    .map(Number)
+    .filter(
+      id => !feedPostCache.has(id)
+    );
+
+  if (!missingIds.length) {
+    return;
+  }
+
+  const idsToFetch = missingIds.slice(
+    0,
+    limit
+  );
+
+  skippedPostHydration[category] =
+    (async () => {
+
+      console.log(
+        "FEED: hydrating skipped posts",
+        idsToFetch.length
+      );
+
+      const start =
+        performance.now();
+
+      const {
+        data,
+        error
+      } = await client.rpc(
+        "get_feed_posts_by_ids",
+        {
+          p_post_ids: idsToFetch
+        }
+      );
+
+      console.log(
+        "FEED: skipped posts hydrated",
+        Math.round(
+          performance.now() - start
+        ),
+        "ms"
+      );
+
+      if (error) {
+
+        console.error(
+          "Skipped post hydration failed:",
+          error
+        );
+
+        return;
+
       }
 
-      optionsByCategory[opt.need_category].push(opt);
+      (data || []).forEach(post => {
 
-    });
+        feedPostCache.set(
+          Number(post.id),
+          post
+        );
+
+      });
+
+    })();
+
+  try {
+
+    await skippedPostHydration[category];
+
+  } finally {
+
+    skippedPostHydration[category] = null;
 
   }
+
 }
 
 /* -----------------------------
    Fetch next matching post
 ----------------------------- */
 
-async function fetchNextPost() {
+async function fetchNextPost(excludeCurrent = false) {
+
+  const fetchStart =
+    performance.now();
+
+  console.log(
+    "FEED: fetchNextPost started"
+  );
 
   /*
    * Direct-post mode
-   * ----------------
-   * If ?post=ID is present, ALWAYS load that exact post.
-   * This is primarily useful for deterministic testing.
    */
   if (draftPostId && !draftPostLoaded) {
 
@@ -571,137 +1243,433 @@ async function fetchNextPost() {
 
     const { data, error } = await client
   .from("posts")
-  .select("*")
+  .select("id, content, anon_id, moment_type, created_at")
   .eq("id", Number(draftPostId))
   .maybeSingle();
 
-console.log("DIRECT POST DEBUG:", {
-  requestedId: draftPostId,
-  numericId: Number(draftPostId),
-  data,
-  error
-});
-
     if (error) {
-      console.error("Direct post load failed:", error);
+
+      console.error(
+        "Direct post load failed:",
+        error
+      );
+
       return null;
+
     }
 
     if (!data) {
-      console.error("Direct post not found:", draftPostId);
+
+      console.error(
+        "Direct post not found:",
+        draftPostId
+      );
+
       return null;
+
     }
 
-    console.log("DIRECT TEST POST LOADED:", data.id);
-
     return {
-      post: data,
-      options:
-        optionsByCategory[data.moment_type] || []
-    };
+  post: data,
+  options: []
+};
+
   }
 
   /*
-   * Normal randomized feed
+   * Remove anything the user has already answered.
    */
+  removeRespondedPostsFromQueue();
 
-  const seenPosts = getSeenPosts();
+const draftPostIds =
+  cachedDraftPostIds || [];
 
-  const excludedIds = [
-    ...respondedPostIds,
-    ...skippedPostIds,
-    ...seenPosts
+removeDraftPostsFromQueue(
+  draftPostIds
+);
+
+  let queue = getFeedQueue();
+
+  /*
+   * --------------------------------------------------
+   * REFILL ACTIVE QUEUE
+   * --------------------------------------------------
+   *
+   * We only fetch more posts when the active queue
+   * is getting low.
+   *
+   * Skipped posts are deliberately NOT used here.
+   */
+  console.log(
+  "FEED QUEUE:",
+  "active =", queue.active.length,
+  "skipped =", queue.skipped.length,
+  "threshold =", FEED_QUEUE_REFILL_THRESHOLD
+);
+
+if (
+  queue.active.length < FEED_QUEUE_REFILL_THRESHOLD &&
+  queue.skipped.length === 0
+) {
+
+        const existingIds = [
+      ...queue.active,
+      ...respondedPostIds,
+      ...draftPostIds
+    ].map(Number);
+
+    console.log(
+  "FEED EXCLUSIONS:",
+  "existingIds =", existingIds.length,
+  "active =", queue.active.length,
+  "skipped =", queue.skipped.length,
+  "responded =", respondedPostIds?.length || 0,
+  "drafts =", draftPostIds?.length || 0
+);
+
+    /*
+     * Ask Supabase for the next personalized
+     * batch for THIS user.
+     *
+     * The ordering is deterministic per user,
+     * so different users naturally see different
+     * posts at the front of their feed.
+     */
+
+    console.log(
+  "FEED: starting personalized RPC",
+  Math.round(
+    performance.now() - fetchStart
+  ),
+  "ms"
+);
+
+    const {
+  data: personalizedPosts,
+  error
+} = await client.rpc(
+  "get_personalized_feed_posts_data",
+  {
+    p_moment_type: getMomentType(),
+    p_excluded_ids: existingIds,
+    p_limit: FEED_FETCH_BATCH_SIZE
+  }
+);
+
+    console.log(
+  "FEED: personalized RPC finished",
+  Math.round(
+    performance.now() - fetchStart
+  ),
+  "ms"
+);
+
+console.log(
+  "FEED: personalized posts returned:",
+  personalizedPosts?.length || 0
+);
+
+    if (error) {
+
+      console.error(
+        "Personalized feed refill failed:",
+        error
+      );
+
+    } else if (
+      personalizedPosts &&
+      personalizedPosts.length > 0
+    ) {
+
+      /*
+       * The database has already ordered these
+       * specifically for this user.
+       *
+       * Do NOT shuffle them here.
+       */
+      personalizedPosts.forEach(post => {
+
+  feedPostCache.set(
+    Number(post.id),
+    post
+  );
+
+});
+
+addPostsToQueue(
+  personalizedPosts.map(
+    post => post.id
+  )
+);
+
+queue = getFeedQueue();
+
+console.log(
+  "FEED QUEUE AFTER REFILL:",
+  "active =", queue.active.length,
+  "skipped =", queue.skipped.length
+);
+
+    }
+
+  }
+
+  /*
+  /* --------------------------------------------------
+   GET NEXT POST
+-------------------------------------------------- */
+
+/*
+ * ACTIVE posts always have priority.
+ *
+ * Only when there are no active posts left
+ * do we enter the skipped-post cycle.
+ *
+ * When the skipped cycle begins, the post
+ * that was just skipped is excluded so it
+ * cannot immediately appear again.
+ */
+
+let candidateIds = [];
+
+if (queue.active.length > 0) {
+
+  candidateIds = [
+    ...queue.active
   ];
 
-  let query = client
-    .from("posts")
-    .select("*")
-    .eq("status", "Active")
-    .eq("moment_type", getMomentType())
-    .is("deleted_at", null)
-    .neq("anon_id", currentUser.id)
-    .limit(100);
-
-  if (blockedUserIds.length > 0) {
-
-    query = query.not(
-      "anon_id",
-      "in",
-      `(${blockedUserIds.join(",")})`
+  if (excludeCurrent && currentPost?.id) {
+    candidateIds = candidateIds.filter(
+      id => Number(id) !== Number(currentPost.id)
     );
+  }
+
+} else {
+
+  candidateIds = [
+    ...queue.skipped
+  ].filter(
+    id =>
+      Number(id) !==
+      Number(currentPost?.id)
+  );
+
+}
+
+if (candidateIds.length === 0) {
+
+  return null;
+
+}
+
+/*
+ * Only retrieve a small number of actual posts
+ * from Supabase at a time.
+ */
+
+if (
+  !excludeCurrent &&
+  queue.active.length === 0 &&
+  queue.skipped.length > 0
+) {
+
+  await hydrateSkippedPosts(
+    selectedCategory,
+    2
+  );
+
+}
+
+let cachedCandidateIds = candidateIds.filter(
+  id => feedPostCache.has(Number(id))
+);
+
+let uncachedCandidateIds = candidateIds.filter(
+  id => !feedPostCache.has(Number(id))
+);
+
+/*
+ * Skipped posts should normally have already been
+ * hydrated above. Keep the fallback list small.
+ */
+const batchIds =
+  queue.active.length === 0 &&
+  queue.skipped.length > 0
+
+    ? cachedCandidateIds.slice(
+        0,
+        excludeCurrent ? 1 : 10
+      )
+
+    : [
+        ...cachedCandidateIds,
+        ...uncachedCandidateIds
+      ].slice(0, 10);
+
+/*
+ * Posts returned directly by the personalized RPC
+ * are already fully hydrated.
+ *
+ * Only query Supabase for IDs that are not
+ * currently in the in-memory cache.
+ */
+
+const cachedPosts = [];
+
+const missingIds = [];
+
+for (const id of batchIds) {
+
+  const cachedPost =
+    feedPostCache.get(Number(id));
+
+  if (cachedPost) {
+
+    cachedPosts.push(cachedPost);
+
+  } else {
+
+    missingIds.push(Number(id));
 
   }
 
-  if (excludedIds.length > 0) {
+}
 
-    query = query.not(
-      "id",
-      "in",
-      `(${excludedIds.join(",")})`
-    );
+let posts = [
+  ...cachedPosts
+];
 
-  }
+/*
+ * Older posts already stored in localStorage
+ * may not exist in the current session cache.
+ *
+ * Only fetch those missing posts.
+ */
 
-  let { data: posts, error } = await query;
+if (
+  missingIds.length > 0 &&
+  queue.active.length > 0 &&
+  !excludeCurrent
+) {
+
+  console.log(
+    "FEED: starting cached-ID hydration RPC",
+    Math.round(
+      performance.now() - fetchStart
+    ),
+    "ms"
+  );
+
+  const {
+    data: fetchedPosts,
+    error
+  } = await client.rpc(
+    "get_feed_posts_by_ids",
+    {
+      p_post_ids: missingIds
+    }
+  );
+
+  console.log(
+    "FEED: cached-ID hydration RPC finished",
+    Math.round(
+      performance.now() - fetchStart
+    ),
+    "ms"
+  );
 
   if (error) {
-    console.error(error);
-    return null;
-  }
 
-  if ((!posts || posts.length === 0) && skippedPostIds.length) {
-
-    skippedPostIds.length = 0;
-
-    let retryQuery = client
-      .from("posts")
-      .select("*")
-      .eq("status", "Active")
-      .eq("moment_type", getMomentType())
-      .is("deleted_at", null)
-      .neq("anon_id", currentUser.id)
-      .limit(100);
-
-    if (blockedUserIds.length > 0) {
-
-      retryQuery = retryQuery.not(
-        "anon_id",
-        "in",
-        `(${blockedUserIds.join(",")})`
-      );
-
-    }
-
-    if (respondedPostIds.length) {
-
-      retryQuery = retryQuery.not(
-        "id",
-        "in",
-        `(${respondedPostIds.join(",")})`
-      );
-
-    }
-
-    const retryResult = await retryQuery;
-
-    posts = retryResult.data || [];
-  }
-
-  if (!posts || posts.length === 0) {
-
-    clearSeenPosts();
+    console.error(
+      "Cached-ID hydration RPC failed:",
+      error
+    );
 
     return null;
+
   }
 
-  const randomPost =
-    posts[Math.floor(Math.random() * posts.length)];
+  (fetchedPosts || []).forEach(post => {
+
+    feedPostCache.set(
+      Number(post.id),
+      post
+    );
+
+    posts.push(post);
+
+  });
+
+}
+
+const postMap = new Map(
+  (posts || []).map(post => [
+    Number(post.id),
+    post
+  ])
+);
+
+/*
+ * Find the first available post according
+ * to our queue order.
+ */
+for (const id of batchIds) {
+
+  const post =
+    postMap.get(Number(id));
+
+  if (!post) continue;
 
   return {
-    post: randomPost,
-    options:
-      optionsByCategory[randomPost.moment_type] || []
-  };
+  post,
+  options: []
+};
+}
+
+/*
+ * If queued posts disappeared from the database,
+ * remove only those stale IDs that we actually
+ * checked in this batch.
+ */
+const availableIds = new Set(
+  (posts || []).map(
+    post => Number(post.id)
+  )
+);
+
+const checkedIds = new Set(
+  batchIds.map(Number)
+);
+
+queue.active =
+  queue.active.filter(id => {
+
+    const numericId = Number(id);
+
+    if (!checkedIds.has(numericId)) {
+      return true;
+    }
+
+    return availableIds.has(numericId);
+
+  });
+
+queue.skipped =
+  queue.skipped.filter(id => {
+
+    const numericId = Number(id);
+
+    if (!checkedIds.has(numericId)) {
+      return true;
+    }
+
+    return availableIds.has(numericId);
+
+  });
+
+saveFeedQueue(queue);
+
+return fetchNextPost();
 
 }
 
@@ -709,18 +1677,15 @@ console.log("DIRECT POST DEBUG:", {
    Save Posts
 ----------------------------- */
 
-async function updateSaveState(postId){
+function updateSaveState(postId){
 
-  const { data } = await client
-    .from("saved_posts")
-    .select("id")
-    .eq("user_id", currentUser.id)
-    .eq("post_id", postId)
-    .maybeSingle();
+  currentPostSaved =
+    savedPostIds.has(Number(postId));
 
-  currentPostSaved = !!data;
-
-  saveBtn?.classList.toggle("saved", currentPostSaved);
+  saveBtn?.classList.toggle(
+    "saved",
+    currentPostSaved
+  );
 
 }
 
@@ -762,7 +1727,15 @@ async function toggleSave(){
 
 }else{
 
-  sessionStorage.setItem("newlySavedPostId", currentPost.id);
+  savedPostIds.add(
+    Number(currentPost.id)
+  );
+
+  sessionStorage.setItem(
+    "newlySavedPostId",
+    currentPost.id
+  );
+
   showToast("Saved for later");
 
 }
@@ -782,6 +1755,10 @@ async function toggleSave(){
 
 }else{
 
+  savedPostIds.delete(
+    Number(currentPost.id)
+  );
+
   showToast("Removed from Saved");
 
 }
@@ -796,10 +1773,23 @@ async function toggleSave(){
 
 function displayPost(post, options) {
 
- currentPost = post;
-categoryState[selectedCategory].currentPost = post;
-rememberPost(post.id);
-updateSaveState(post.id);
+  const displayStart = performance.now();
+
+  console.log(
+    "DISPLAY: started"
+  );
+
+  currentPost = post;
+  categoryState[selectedCategory].currentPost = post;
+  updateSaveState(post.id);
+
+  console.log(
+    "DISPLAY: after updateSaveState",
+    Math.round(
+      performance.now() - displayStart
+    ),
+    "ms"
+  );
 
   postContainer.style.pointerEvents = "auto";
 
@@ -869,12 +1859,79 @@ updateSaveState(post.id);
     </button>
   `;
 
+  console.log(
+    "DISPLAY: after HTML render",
+    Math.round(
+      performance.now() - displayStart
+    ),
+    "ms"
+  );
+
   saveBtn.onclick = toggleSave;
 
   const input = document.getElementById("responseInput");
   const counter = document.getElementById("charCount");
   const hint = document.getElementById("writingHint");
   const sendBtn = document.getElementById("sendResponseBtn");
+
+// Someone Stayed — response box engagement
+input.onfocus = async () => {
+  console.log("RESPONSE BOX FOCUSED", post.id);
+
+  if (!currentUser) {
+    console.log("STAY: no current user");
+    return;
+  }
+
+  if (post.anon_id === currentUser.id) {
+    console.log("STAY: own post");
+    return;
+  }
+
+  if (!isVisible) {
+    console.log("STAY: page not visible");
+    return;
+  }
+
+  // Check whether this post has already been qualified
+  const { data: existingView, error: existingError } = await client
+    .from("views")
+    .select("qualified")
+    .eq("post_id", post.id)
+    .eq("viewer_id", currentUser.id)
+    .maybeSingle();
+
+  if (existingError) {
+    console.error("STAY CHECK ERROR:", existingError);
+    return;
+  }
+
+  // Already counted — don't start another engagement timer
+  if (existingView?.qualified === true) {
+    console.log(`STAY: post ${post.id} already qualified`);
+    return;
+  }
+
+  clearTimeout(stayEngagementTimer);
+
+  stayEngagementTimer = setTimeout(async () => {
+    console.log("STAY: 2 second engagement reached", post.id);
+
+    if (!isVisible) {
+      console.log("STAY: page not visible");
+      return;
+    }
+
+    await qualifyStay(post.id);
+
+    stayEngagementTimer = null;
+  }, 2000);
+};
+
+input.onblur = () => {
+  clearTimeout(stayEngagementTimer);
+  stayEngagementTimer = null;
+};
 
   function updateCounter() {
 
@@ -901,7 +1958,15 @@ updateSaveState(post.id);
 
   loadDraft().then(() => updateCounter());
 
-  enableDraftAutosave();
+enableDraftAutosave();
+
+console.log(
+  "DISPLAY: after draft setup",
+  Math.round(
+    performance.now() - displayStart
+  ),
+  "ms"
+);
 
   const hintMessages = [
     "Write like you're sitting beside them.",
@@ -1002,12 +2067,96 @@ document
 
   });
 
-requestAnimationFrame(() => {
-  trackStay(post);
+trackStay(post);
 
-  // Remember where this category was left
+console.log(
+  "DISPLAY: after trackStay",
+  Math.round(
+    performance.now() - displayStart
+  ),
+  "ms"
+);
+
+// Remember where this category was left
 categoryState[selectedCategory].currentPost = post;
-});
+
+// Quietly preload the next post while the user reads
+preloadNextPost();
+
+// Continue hydrating remaining skipped posts in the background.
+// This starts after preload has had a chance to use the first
+// cached skipped post.
+if (
+  getFeedQueue(selectedCategory).active.length === 0 &&
+  getFeedQueue(selectedCategory).skipped.length > 0
+) {
+
+  hydrateSkippedPosts(
+    selectedCategory,
+    FEED_QUEUE_LIMIT
+  ).catch(error => {
+
+    console.error(
+      "Background skipped-post hydration failed:",
+      error
+    );
+
+  });
+
+}
+
+console.log(
+  "DISPLAY: finished",
+  Math.round(
+    performance.now() - displayStart
+  ),
+  "ms"
+);
+}
+
+function hydratePresetButtons(post) {
+
+  if (!post) return;
+
+  const container =
+    document.getElementById("presetButtons");
+
+  if (!container) return;
+
+  const options =
+    optionsByCategory[post.moment_type] || [];
+
+  let presetButtonsHtml = "";
+
+  options.forEach(option => {
+
+    presetButtonsHtml += `
+      <button
+        class="response-btn"
+        data-text="${option.response_text.replace(/"/g, "&quot;")}">
+        ${option.response_text}
+      </button>
+    `;
+
+  });
+
+  container.innerHTML =
+    presetButtonsHtml;
+
+  container
+    .querySelectorAll(".response-btn")
+    .forEach(btn => {
+
+      btn.addEventListener("click", () => {
+
+        sendPresetResponse(
+          btn.dataset.text,
+          btn
+        );
+
+      });
+
+    });
 
 }
 
@@ -1015,21 +2164,195 @@ categoryState[selectedCategory].currentPost = post;
    First load after category pick
 ----------------------------- */
 
-async function loadInitialPost(){
+async function loadInitialPost() {
 
-  await initData();
+  const startupStart =
+    performance.now();
 
-  const result = await fetchNextPost();
+  console.log(
+    "STARTUP: loadInitialPost started"
+  );
 
-  if(!result){
+  /*
+   * Start non-critical requests immediately.
+   */
+  const profilePromise =
+    loadProfileInBackground();
+
+  const optionsPromise =
+    initNonCriticalData();
+
+  console.log(
+    "STARTUP: background requests started",
+    Math.round(
+      performance.now() - startupStart
+    ),
+    "ms"
+  );
+
+  /*
+   * Critical feed data.
+   */
+  const criticalStart =
+  performance.now();
+
+const draftPostIds =
+  await initCriticalFeedData();
+
+console.log(
+  "STARTUP: critical feed data finished",
+  Math.round(
+    performance.now() - criticalStart
+  ),
+  "ms"
+);
+
+/*
+ * Start skipped-post hydration immediately.
+ * fetchNextPost() will reuse the same promise.
+ */
+const skippedHydrationPromise =
+  hydrateSkippedPosts(
+    selectedCategory,
+    2
+  );
+
+/*
+ * First actual post.
+ */
+const postStart =
+  performance.now();
+
+const result =
+  await fetchNextPost();
+
+await skippedHydrationPromise;
+
+  console.log(
+    "STARTUP: fetchNextPost finished",
+    Math.round(
+      performance.now() - postStart
+    ),
+    "ms"
+  );
+
+  if (!result) {
 
     postContainer.classList.add("hidden");
     noPosts.classList.remove("hidden");
-    return;
 
+    return;
   }
 
-  displayPost(result.post, result.options);
+  console.log(
+    "STARTUP: first post ready",
+    Math.round(
+      performance.now() - startupStart
+    ),
+    "ms"
+  );
+
+  /*
+   * Render immediately.
+   */
+  displayPost(
+    result.post,
+    []
+  );
+
+  /*
+   * Hydrate quick responses when available.
+   */
+  optionsPromise
+    .then(() => {
+
+      console.log(
+        "STARTUP: options finished",
+        Math.round(
+          performance.now() - startupStart
+        ),
+        "ms"
+      );
+
+      if (currentPost) {
+
+        hydratePresetButtons(
+          currentPost
+        );
+
+      }
+
+    })
+    .catch(error => {
+
+      console.error(
+        "Background response options failed:",
+        error
+      );
+
+    });
+
+  /*
+   * Profile remains non-critical.
+   */
+  profilePromise
+    .catch(error => {
+
+      console.error(
+        "Background profile load failed:",
+        error
+      );
+
+    });
+
+}
+
+/* -----------------------------
+   Preload next post
+----------------------------- */
+
+async function preloadNextPost() {
+
+  const preloadStart = performance.now();
+
+  const category = selectedCategory;
+
+  if (nextPostCache[category]) {
+    return;
+  }
+
+  if (nextPostPreloading[category]) {
+    return;
+  }
+
+  nextPostPreloading[category] = true;
+
+  try {
+
+    const result = await fetchNextPost(true);
+
+    if (result) {
+      nextPostCache[category] = result;
+      console.log(
+  "NEXT POST PRELOADED",
+  result.post.id,
+  Math.round(performance.now() - preloadStart),
+  "ms"
+);
+    }
+
+  } catch (error) {
+
+    console.error(
+      "NEXT POST PRELOAD FAILED:",
+      error
+    );
+
+  } finally {
+
+    nextPostPreloading[category] = false;
+
+  }
 
 }
 
@@ -1064,31 +2387,73 @@ async function preloadOtherCategory(){
    Card transition
 ----------------------------- */
 
-async function animateToNextPost(){
+async function animateToNextPost() {
 
-  const content = document.getElementById("responseContent");
+  const content =
+    document.getElementById("responseContent");
+
+  const category = selectedCategory;
+
+  /*
+   * If the next post is already preloaded,
+   * we do not need to wait for the network.
+   *
+   * Keep the 220ms exit animation so the
+   * transition remains visually smooth.
+   */
+  const cached = nextPostCache[category];
 
   content.classList.add("exiting");
 
-  await new Promise(r => setTimeout(r,220));
+  if (cached) {
 
-  // Always fetch using the CURRENT selected category
-  const result = await fetchNextPost();
+    await new Promise(r =>
+      setTimeout(r, 220)
+    );
 
-  if(!result){
+    nextPostCache[category] = null;
 
-    postContainer.classList.add("hidden");
-    noPosts.classList.remove("hidden");
-    content.classList.remove("exiting");
-    return;
+    displayPost(
+      cached.post,
+      cached.options
+    );
 
+  } else {
+
+    /*
+     * Preload wasn't ready yet.
+     *
+     * Give the exit animation time to play
+     * while the fallback fetch happens.
+     */
+    const fetchPromise =
+      fetchNextPost();
+
+    await new Promise(r =>
+      setTimeout(r, 220)
+    );
+
+    const result =
+      await fetchPromise;
+
+    if (!result) {
+
+      postContainer.classList.add("hidden");
+      noPosts.classList.remove("hidden");
+      content.classList.remove("exiting");
+
+      return;
+    }
+
+    displayPost(
+      result.post,
+      result.options
+    );
   }
 
-  displayPost(result.post, result.options);
-
-  // Quietly prepare the first post for the other tab.
-preloadOtherCategory();
-
+  /*
+   * Finish the transition.
+   */
   content.classList.remove("exiting");
   content.classList.add("entering");
 
@@ -1097,6 +2462,12 @@ preloadOtherCategory();
       content.classList.remove("entering");
     });
   });
+
+  /*
+   * Immediately start preparing the post
+   * after this one.
+   */
+  preloadNextPost();
 
 }
 
@@ -1108,7 +2479,12 @@ function handleSkip() {
 
   cancelStay();
 
-  skippedPostIds.push(currentPost.id);
+  /*
+   * Skipping does NOT exclude the post.
+   * It moves the post to the back of this
+   * user's queue for this category.
+   */
+  movePostToBack(currentPost.id);
 
   document.getElementById("skipBtn").disabled = true;
   document.getElementById("sendResponseBtn").disabled = true;
@@ -1301,8 +2677,7 @@ function showConfirmationAndAdvance(type = "normal") {
 
   /*
    * Hold Space after the first one:
-   * no confirmation — move directly
-   * to the next post.
+   * move directly to the next post.
    */
   if (type === "hold") {
 
@@ -1312,32 +2687,43 @@ function showConfirmationAndAdvance(type = "normal") {
   }
 
   /*
-   * Written responses after the first one,
-   * and preset responses, get the small
-   * floating confirmation.
+   * Subsequent written responses:
+   * show the small floating confirmation,
+   * then move to the next post.
    */
+  if (type === "written") {
 
-  const toast =
-    document.getElementById("heldSpaceToast");
+    const toast =
+      document.getElementById("heldSpaceToast");
 
-  if (!toast) {
+    if (!toast) {
 
-    animateToNextPost();
+      animateToNextPost();
+
+      return;
+    }
+
+    toast.classList.remove("hidden");
+
+    setTimeout(() => {
+
+      toast.classList.add("hidden");
+
+      animateToNextPost();
+
+    }, 1600);
 
     return;
-
   }
 
-  toast.classList.remove("hidden");
+  /*
+   * Any other response type:
+   * move directly to the next post.
+   */
+  animateToNextPost();
 
-  setTimeout(() => {
-
-    toast.classList.add("hidden");
-
-    animateToNextPost();
-
-  }, 1600);
 }
+
 
 document
   .getElementById("recognitionNextBtn")
@@ -1520,7 +2906,69 @@ async function checkResponseDecision(
   }
 }
 
-function showResponseSafetyPopup(type = "normal") {
+function showAccountSuspendedPopup(suspendedUntil) {
+
+  responseSafetyPopupMode = "suspended";
+
+  if (!responseSafetyCheck) return;
+
+  if (responseSafetyTitle) {
+    responseSafetyTitle.textContent =
+      "Your account has been suspended.";
+  }
+
+  if (responseSafetyText) {
+    responseSafetyText.textContent =
+      "You can't send responses until your suspension ends.";
+  }
+
+  if (responseSafetyQuestion) {
+
+    let endDateText = "your suspension ends";
+
+    if (suspendedUntil) {
+
+      const date = new Date(suspendedUntil);
+
+      if (!Number.isNaN(date.getTime())) {
+
+        endDateText =
+          `Suspension ends: ${date.toLocaleDateString(
+            "en-IN",
+            {
+              day: "numeric",
+              month: "long",
+              year: "numeric"
+            }
+          )}.`;
+
+      }
+
+    }
+
+    responseSafetyQuestion.textContent =
+      endDateText;
+  }
+
+  if (sendAnywayBtn) {
+    sendAnywayBtn.classList.add("hidden");
+    sendAnywayBtn.style.display = "none";
+  }
+
+  if (editResponseBtn) {
+    editResponseBtn.textContent = "Okay";
+  }
+
+  responseSafetyCheck.classList.remove("hidden");
+  responseSafetyCheck.style.display = "block";
+}
+
+function showResponseSafetyPopup(
+  type = "normal",
+  violationCount = null
+) {
+
+  responseSafetyPopupMode = type;
 
   if (!responseSafetyCheck) return;
 
@@ -1537,8 +2985,19 @@ function showResponseSafetyPopup(type = "normal") {
     }
 
     if (responseSafetyQuestion) {
-      responseSafetyQuestion.textContent =
-        "Please edit your response before sending it.";
+
+      if (violationCount === 2) {
+
+        responseSafetyQuestion.textContent =
+          "This is your second serious violation. One more serious violation will result in your account being suspended.";
+
+      } else {
+
+        responseSafetyQuestion.textContent =
+          "Please edit your response before sending it.";
+
+      }
+
     }
 
     if (sendAnywayBtn) {
@@ -1567,6 +3026,7 @@ function showResponseSafetyPopup(type = "normal") {
       sendAnywayBtn.classList.remove("hidden");
       sendAnywayBtn.style.display = "";
     }
+
   }
 
   responseSafetyCheck.classList.remove("hidden");
@@ -1664,10 +3124,28 @@ async function sendFreeTextResponse(responseText) {
     });
 
   /* ---------------------------------------------
-     DAILY LIMIT
-  --------------------------------------------- */
+   PRE-SUBMIT CHECKS
+--------------------------------------------- */
 
-  if (await checkRateLimit(currentUser.id)) {
+let result;
+
+try {
+
+  /*
+   * These two operations are independent.
+   * Run them simultaneously instead of waiting
+   * for the rate-limit query before refreshing
+   * the access token.
+   */
+  const [
+    rateLimitReached,
+    accessToken
+  ] = await Promise.all([
+    checkRateLimit(currentUser.id),
+    getFreshAccessToken()
+  ]);
+
+  if (rateLimitReached) {
 
     alert(
       "You've reached today's response limit. Come back tomorrow."
@@ -1685,51 +3163,61 @@ async function sendFreeTextResponse(responseText) {
     return;
   }
 
-  /* ---------------------------------------------
-     SUBMIT RESPONSE — SERVER CONTROLLED
-  --------------------------------------------- */
+  if (!accessToken) {
 
-  let result;
-
-  try {
-
-    const response = await fetch(
-      `${SUPABASE_URL}/functions/v1/submit-response`,
-      {
-        method: "POST",
-
-        headers: {
-          "Content-Type": "application/json",
-          "apikey": SUPABASE_ANON_KEY,
-          "Authorization":
-            `Bearer ${currentSession.access_token}`
-        },
-
-        body: JSON.stringify({
-          post_id: currentPost.id,
-          response_text: responseText,
-          response_type: "written",
-          send_anyway: false
-        })
-      }
+    alert(
+      "Your session has expired. Please sign in again."
     );
 
-    result = await response.json();
+    sendBtn.disabled = false;
+    skipBtn.disabled = false;
 
-    console.log(
-      "Submit Response result:",
-      result
-    );
+    document
+      .querySelectorAll("#presetButtons .response-btn")
+      .forEach(btn => {
+        btn.disabled = false;
+      });
+
+    return;
+  }
+
+  const response = await fetch(
+    `${SUPABASE_URL}/functions/v1/submit-response`,
+    {
+      method: "POST",
+
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization":
+          `Bearer ${accessToken}`
+      },
+
+      body: JSON.stringify({
+        post_id: currentPost.id,
+        response_text: responseText,
+        response_type: "written",
+        send_anyway: false
+      })
+    }
+  );
+
+  result = await response.json();
+
+  console.log(
+    "Submit Response result:",
+    result
+  );
 
     if (!response.ok) {
 
       if (result?.code === "ACCOUNT_SUSPENDED") {
 
-        alert(
-          "Your account is temporarily suspended. You can't send responses until your suspension ends."
-        );
+  showAccountSuspendedPopup(
+    result.suspended_until
+  );
 
-      } else {
+} else {
 
         alert(
           "We couldn't complete the response check right now. Please try again."
@@ -1784,7 +3272,16 @@ async function sendFreeTextResponse(responseText) {
     pendingResponsePostId = currentPost.id;
     pendingResponseWasWarned = true;
 
-    showResponseSafetyPopup("urgent");
+    if (result.enforcement?.account_status === "suspended") {
+  showAccountSuspendedPopup(
+    result.enforcement?.suspended_until
+  );
+} else {
+  showResponseSafetyPopup(
+    "urgent",
+    result.enforcement?.urgent_violation_count
+  );
+}
 
     sendBtn.disabled = false;
     skipBtn.disabled = false;
@@ -1834,8 +3331,9 @@ async function sendFreeTextResponse(responseText) {
   ) {
 
     respondedPostIds.push(currentPost.id);
+removePostFromQueue(currentPost.id);
 
-    cancelStay();
+cancelStay();
 
     await clearDraft(currentPost.id);
 
@@ -1877,6 +3375,20 @@ async function sendFreeTextResponse(responseText) {
 }
 
 editResponseBtn?.addEventListener("click", () => {
+
+    if (responseSafetyPopupMode === "suspended") {
+
+    responseSafetyCheck?.classList.add("hidden");
+    responseSafetyCheck.style.display = "none";
+
+    responseSafetyPopupMode = "normal";
+
+    if (editResponseBtn) {
+      editResponseBtn.textContent = "Edit response";
+    }
+
+    return;
+  }
 
   if (responseSafetyCheck) {
     responseSafetyCheck.classList.add("hidden");
@@ -1953,17 +3465,38 @@ sendAnywayBtn?.addEventListener("click", async () => {
 
   try {
 
-    const response = await fetch(
-      `${SUPABASE_URL}/functions/v1/submit-response`,
-      {
-        method: "POST",
+    const accessToken = await getFreshAccessToken();
 
-        headers: {
-          "Content-Type": "application/json",
-          "apikey": SUPABASE_ANON_KEY,
-          "Authorization":
-            `Bearer ${currentSession.access_token}`
-        },
+if (!accessToken) {
+
+  alert(
+    "Your session has expired. Please sign in again."
+  );
+
+  sendBtn.disabled = false;
+  skipBtn.disabled = false;
+
+  document
+    .querySelectorAll("#presetButtons .response-btn")
+    .forEach(btn => {
+      btn.style.pointerEvents = "";
+      btn.style.opacity = "";
+    });
+
+  return;
+}
+
+const response = await fetch(
+  `${SUPABASE_URL}/functions/v1/submit-response`,
+  {
+    method: "POST",
+
+    headers: {
+      "Content-Type": "application/json",
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization":
+        `Bearer ${accessToken}`
+    },
 
         body: JSON.stringify({
           post_id: currentPost.id,
@@ -1985,11 +3518,11 @@ sendAnywayBtn?.addEventListener("click", async () => {
 
       if (result?.code === "ACCOUNT_SUSPENDED") {
 
-        alert(
-          "Your account is temporarily suspended. You can't send responses until your suspension ends."
-        );
+  showAccountSuspendedPopup(
+    result.suspended_until
+  );
 
-      } else {
+} else {
 
         alert(
           "Something went wrong. Try again."
@@ -2001,29 +3534,29 @@ sendAnywayBtn?.addEventListener("click", async () => {
     }
 
     if (
-      result.sent === true &&
-      result.response_id
-    ) {
+  result.backend_action === "withhold"
+) {
 
-      respondedPostIds.push(currentPost.id);
+  respondedPostIds.push(currentPost.id);
+  removePostFromQueue(currentPost.id);
 
-      cancelStay();
+  cancelStay();
 
-      await clearDraft(currentPost.id);
+  await clearDraft(currentPost.id);
 
-      showConfirmationAndAdvance("written");
+  showConfirmationAndAdvance("written");
 
-      return;
-    }
+  return;
+}
 
-    console.error(
-      "Unexpected Send Anyway result:",
-      result
-    );
+console.error(
+  "Unexpected Send Anyway result:",
+  result
+);
 
-    alert(
-      "Something went wrong. Try again."
-    );
+alert(
+  "Something went wrong. Try again."
+);
 
   } catch (error) {
 
@@ -2109,17 +3642,38 @@ async function sendPresetResponse(
 
   try {
 
-    const response = await fetch(
-      `${SUPABASE_URL}/functions/v1/submit-response`,
-      {
-        method: "POST",
+    const accessToken = await getFreshAccessToken();
 
-        headers: {
-          "Content-Type": "application/json",
-          "apikey": SUPABASE_ANON_KEY,
-          "Authorization":
-            `Bearer ${currentSession.access_token}`
-        },
+if (!accessToken) {
+
+  alert(
+    "Your session has expired. Please sign in again."
+  );
+
+  sendBtn.disabled = false;
+  skipBtn.disabled = false;
+
+  document
+    .querySelectorAll("#presetButtons .response-btn")
+    .forEach(btn => {
+      btn.style.pointerEvents = "";
+      btn.style.opacity = "";
+    });
+
+  return;
+}
+
+const response = await fetch(
+  `${SUPABASE_URL}/functions/v1/submit-response`,
+  {
+    method: "POST",
+
+    headers: {
+      "Content-Type": "application/json",
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization":
+        `Bearer ${accessToken}`
+    },
 
         body: JSON.stringify({
           post_id: currentPost.id,
@@ -2144,11 +3698,11 @@ async function sendPresetResponse(
 
       if (result?.code === "ACCOUNT_SUSPENDED") {
 
-        alert(
-          "Your account is temporarily suspended. You can't send responses until your suspension ends."
-        );
+  showAccountSuspendedPopup(
+    result.suspended_until
+  );
 
-      } else {
+} else {
 
         alert(
           "Something went wrong. Try again."
@@ -2160,13 +3714,14 @@ async function sendPresetResponse(
     }
 
     if (
-      result.backend_action === "publish" &&
-      result.response_id
-    ) {
+  result.backend_action === "publish" &&
+  result.response_id
+) {
 
-      respondedPostIds.push(currentPost.id);
+  respondedPostIds.push(currentPost.id);
+  removePostFromQueue(currentPost.id);
 
-      cancelStay();
+  cancelStay();
 
       await clearDraft(currentPost.id);
 
@@ -2177,22 +3732,36 @@ async function sendPresetResponse(
       return;
     }
 
-    if (
-      result.backend_action === "withhold" ||
-      result.backend_action === "urgent"
-    ) {
+    if (result.backend_action === "urgent") {
 
-      console.error(
-        "Preset response was moderated:",
-        result
-      );
+  pendingResponseText = responseText;
+  pendingResponsePostId = currentPost.id;
+  pendingResponseWasWarned = true;
 
-      alert(
-        "This response couldn't be sent. Please try another response."
-      );
+  if (result.enforcement?.account_status === "suspended") {
+    showAccountSuspendedPopup(
+      result.enforcement?.suspended_until
+    );
+  } else {
+    showResponseSafetyPopup(
+      "urgent",
+      result.enforcement?.urgent_violation_count
+    );
+  }
 
-      return;
-    }
+  return;
+}
+
+if (result.backend_action === "withhold") {
+
+  pendingResponseText = responseText;
+  pendingResponsePostId = currentPost.id;
+  pendingResponseWasWarned = true;
+
+  showResponseSafetyPopup("normal");
+
+  return;
+}
 
     console.error(
       "Unexpected preset response result:",
