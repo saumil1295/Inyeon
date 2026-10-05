@@ -156,7 +156,7 @@ async function loadGivenResponses() {
       post_id,
       draft_text,
       updated_at,
-      posts(content, created_at, anon_id)
+      posts(content, created_at, anon_id, moment_type)
     `)
     .eq("responder_anon_id", currentUser.id)
     .order("updated_at", { ascending: false });
@@ -251,9 +251,30 @@ if (visibleDrafts.length) {
       `;
 
       card.querySelector(".draft-continue-btn")
-        .addEventListener("click", () => {
-          window.location.href = `respond.html?post=${draft.post_id}`;
-        });
+  .addEventListener("click", () => {
+
+    if (draft.posts) {
+
+      sessionStorage.setItem(
+        `inyeon_direct_post_${draft.post_id}`,
+        JSON.stringify({
+          id: draft.post_id,
+          content: draft.posts.content,
+          anon_id: draft.posts.anon_id,
+          moment_type: draft.posts.moment_type,
+          created_at: draft.posts.created_at
+        })
+      );
+
+      console.log(
+        "DIRECT POST: cached draft post before navigation",
+        draft.post_id
+      );
+    }
+
+    window.location.href =
+      `respond.html?post=${draft.post_id}`;
+  });
 
       givenList.appendChild(card);
 
@@ -579,32 +600,20 @@ savedTab?.addEventListener("click", async()=>{
 
 document.addEventListener("click", e => {
 
-  const btn = e.target.closest(".saved-respond-btn");
+  const btn =
+    e.target.closest(".saved-respond-btn");
 
   if (!btn) return;
 
   e.preventDefault();
 
-  const card = btn.closest(".shared-card");
+  const card =
+    btn.closest(".shared-card");
+
   card?.classList.add("lifting");
 
-  // View Transitions API
-  if ("startViewTransition" in document) {
-
-    card.style.viewTransitionName = "inyeon-card";
-
-    document.startViewTransition(() => {
-      window.location.href = `respond.html?post=${btn.dataset.post}`;
-    });
-
-  } else {
-
-    // Fallback
-    setTimeout(() => {
-      window.location.href = `respond.html?post=${btn.dataset.post}`;
-    },160);
-
-  }
+  window.location.href =
+    `respond.html?post=${btn.dataset.post}`;
 
 });
 

@@ -4,11 +4,11 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const { createClient } = supabase;
 const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Allow the View Transition destination to settle cleanly
-requestAnimationFrame(() => {
-  const card = document.getElementById("postContainer");
-  if (card) card.style.viewTransitionName = "inyeon-card";
-});
+console.log(
+  "SUPABASE CLIENT CREATED"
+);
+
+// View transition disabled for direct navigation
 
 const params = new URLSearchParams(window.location.search);
 
@@ -307,13 +307,54 @@ const nextPostPreloading = {
   light: false
 };
 
+const feedRefillPromise = {
+  difficult: null,
+  light: null
+};
+
 let respondedPostIds = [];
+
+const RESPONDED_POST_IDS_CACHE_PREFIX =
+  "inyeon_responded_post_ids_";
+
 let blockedUserIds = [];
 let optionsByCategory = {};
 let cachedDraftPostIds = [];
 let savedPostIds = new Set();
 
+const DRAFT_POST_IDS_CACHE_PREFIX =
+  "inyeon_draft_post_ids_";
+
+function getRespondedPostsCacheKey() {
+
+  return currentUser?.id
+    ? `${RESPONDED_POST_IDS_CACHE_PREFIX}${currentUser.id}`
+    : null;
+
+}
+
+function getDraftPostIdsCacheKey() {
+
+  return currentUser?.id
+    ? `${DRAFT_POST_IDS_CACHE_PREFIX}${currentUser.id}`
+    : null;
+
+}
+
+function getSavedPostsCacheKey() {
+
+  return currentUser?.id
+    ? `inyeon_saved_post_ids_${currentUser.id}`
+    : null;
+
+}
+
 const feedPostCache = new Map();
+
+const restoredSkippedPostCategories =
+  new Set();
+
+  const clearedDraftPostIds = new Set();
 
 const skippedPostHydration = {
   difficult: null,
@@ -341,6 +382,268 @@ function getFeedQueueKey(category = selectedCategory) {
 
   return `feedQueue_${currentUser.id}_${category}`;
 
+}
+
+function getSkippedPostCacheKey(
+  category = selectedCategory
+) {
+  if (!currentUser?.id) return null;
+
+  return `feedSkippedPosts_${currentUser.id}_${category}`;
+}
+
+function restorePersistedSkippedPosts(
+  category,
+  skippedIds
+) {
+  const key =
+    getSkippedPostCacheKey(category);
+
+  if (!key || !skippedIds?.length) {
+    return;
+  }
+
+  try {
+    const stored =
+      JSON.parse(
+        localStorage.getItem(key)
+      );
+
+    if (
+      !stored ||
+      !stored.timestamp ||
+      !Array.isArray(stored.posts)
+    ) {
+      return;
+    }
+
+    const age =
+      Date.now() - stored.timestamp;
+
+    if (
+      age >
+      FEED_QUEUE_HOURS * 60 * 60 * 1000
+    ) {
+      localStorage.removeItem(key);
+      return;
+    }
+
+    const skippedSet =
+      new Set(
+        skippedIds.map(Number)
+      );
+
+    stored.posts.forEach(post => {
+      const id = Number(post?.id);
+
+      if (
+        id &&
+        skippedSet.has(id)
+      ) {
+        feedPostCache.set(
+          id,
+          post
+        );
+      }
+    });
+
+    console.log(
+      "FEED: restored skipped posts from local cache",
+      [...feedPostCache.keys()]
+    );
+
+  } catch (error) {
+    console.warn(
+      "FEED: skipped post cache restore failed:",
+      error
+    );
+  }
+}
+
+function savePersistedSkippedPosts(
+  category,
+  skippedIds
+) {
+  const key =
+    getSkippedPostCacheKey(category);
+
+  if (!key) return;
+
+  const posts =
+    skippedIds
+      .map(Number)
+      .map(id =>
+        feedPostCache.get(id)
+      )
+      .filter(Boolean)
+      .slice(0, FEED_QUEUE_LIMIT);
+
+  try {
+    localStorage.setItem(
+      key,
+      JSON.stringify({
+        posts,
+        timestamp: Date.now()
+      })
+    );
+  } catch (error) {
+    console.warn(
+      "FEED: skipped post cache save failed:",
+      error
+    );
+  }
+}
+
+function getActivePostCacheKey(
+  category = selectedCategory
+) {
+
+  if (!currentUser?.id) {
+    return null;
+  }
+
+  return `feedActivePosts_${currentUser.id}_${category}`;
+}
+
+
+function restorePersistedActivePosts(
+  category,
+  activeIds
+) {
+
+  const key =
+    getActivePostCacheKey(category);
+
+  if (
+    !key ||
+    !Array.isArray(activeIds) ||
+    activeIds.length === 0
+  ) {
+    return;
+  }
+
+  try {
+
+    const stored =
+      JSON.parse(
+        localStorage.getItem(key)
+      );
+
+    if (
+      !stored ||
+      !stored.timestamp ||
+      !Array.isArray(stored.posts)
+    ) {
+      return;
+    }
+
+    const age =
+      Date.now() -
+      stored.timestamp;
+
+    if (
+      age >
+      FEED_QUEUE_HOURS *
+      60 *
+      60 *
+      1000
+    ) {
+
+      localStorage.removeItem(key);
+
+      return;
+    }
+
+    const activeSet =
+      new Set(
+        activeIds.map(Number)
+      );
+
+    let restoredCount = 0;
+
+    stored.posts.forEach(post => {
+
+      const id =
+        Number(post?.id);
+
+      if (
+        Number.isFinite(id) &&
+        activeSet.has(id)
+      ) {
+
+        feedPostCache.set(
+          id,
+          post
+        );
+
+        restoredCount++;
+      }
+
+    });
+
+    console.log(
+      "FEED: restored active posts from local cache",
+      restoredCount
+    );
+
+  } catch (error) {
+
+    console.warn(
+      "FEED: active post cache restore failed:",
+      error
+    );
+
+  }
+}
+
+
+function savePersistedActivePosts(
+  category,
+  activeIds
+) {
+
+  const key =
+    getActivePostCacheKey(category);
+
+  if (
+    !key ||
+    !Array.isArray(activeIds) ||
+    activeIds.length === 0
+  ) {
+    return;
+  }
+
+  const posts =
+    activeIds
+      .map(Number)
+      .map(id =>
+        feedPostCache.get(id)
+      )
+      .filter(Boolean)
+      .slice(0, FEED_QUEUE_LIMIT);
+
+  if (posts.length === 0) {
+    return;
+  }
+
+  try {
+
+    localStorage.setItem(
+      key,
+      JSON.stringify({
+        posts,
+        timestamp: Date.now()
+      })
+    );
+
+  } catch (error) {
+
+    console.warn(
+      "FEED: active post cache save failed:",
+      error
+    );
+
+  }
 }
 
 function getFeedQueue(category = selectedCategory) {
@@ -395,16 +698,47 @@ function getFeedQueue(category = selectedCategory) {
      */
 
     if (
-      Array.isArray(stored.active) &&
-      Array.isArray(stored.skipped)
-    ) {
+  Array.isArray(stored.active) &&
+  Array.isArray(stored.skipped)
+) {
 
-      return {
-        active: stored.active,
-        skipped: stored.skipped
-      };
+  /*
+   * Restore persisted active posts.
+   *
+   * This allows the feed to display
+   * immediately without hydrating active
+   * post IDs from Supabase.
+   */
+  // restorePersistedActivePosts(
+//   category,
+//   stored.active
+// );
 
-    }
+  /*
+   * Restore persisted skipped posts only once
+   * per category during this page session.
+   */
+  if (
+    !restoredSkippedPostCategories.has(
+      category
+    )
+  ) {
+
+    restorePersistedSkippedPosts(
+      category,
+      stored.skipped
+    );
+
+    restoredSkippedPostCategories.add(
+      category
+    );
+  }
+
+  return {
+    active: stored.active,
+    skipped: stored.skipped
+  };
+}
 
     /*
      * Convert the old flat queue format
@@ -440,7 +774,6 @@ function saveFeedQueue(
   queue,
   category = selectedCategory
 ) {
-
   const key = getFeedQueueKey(category);
 
   if (!key) return;
@@ -466,18 +799,35 @@ function saveFeedQueue(
     })
   );
 
+  savePersistedSkippedPosts(
+    category,
+    skipped
+  );
 }
 
 function clearFeedQueue(
   category = selectedCategory
 ) {
 
-  const key = getFeedQueueKey(category);
+    restoredSkippedPostCategories.delete(
+    category
+  );
 
-  if (!key) return;
+  const key =
+    getFeedQueueKey(category);
 
-  localStorage.removeItem(key);
+  const skippedCacheKey =
+    getSkippedPostCacheKey(category);
 
+  if (key) {
+    localStorage.removeItem(key);
+  }
+
+  if (skippedCacheKey) {
+    localStorage.removeItem(
+      skippedCacheKey
+    );
+  }
 }
 
 /*
@@ -499,17 +849,22 @@ function addPostsToQueue(
   ]);
 
   postIds.forEach(id => {
+  const numericId = Number(id);
 
-    const numericId = Number(id);
-
-    if (!existing.has(numericId)) {
-
-      queue.active.push(numericId);
-      existing.add(numericId);
-
-    }
-
-  });
+  if (!existing.has(numericId)) {
+    queue.active.push(numericId);
+    existing.add(numericId);
+  } else {
+    console.log(
+      "QUEUE ADD: rejected existing ID",
+      numericId,
+      "already in active =",
+      queue.active.includes(numericId),
+      "already in skipped =",
+      queue.skipped.includes(numericId)
+    );
+  }
+});
 
   console.log(
   "QUEUE ADD:",
@@ -539,27 +894,27 @@ function addPostsToQueue(
  * This guarantees B stays behind all
  * non-skipped posts.
  */
-function movePostToBack(
+async function movePostToBack(
   postId,
   category = selectedCategory
 ) {
+  const numericId = Number(postId);
+
+  if (!Number.isFinite(numericId)) {
+    return;
+  }
 
   const queue = getFeedQueue(category);
-
-  const numericId = Number(postId);
 
   queue.active = queue.active.filter(
     id => Number(id) !== numericId
   );
 
-  queue.skipped = queue.skipped.filter(
-    id => Number(id) !== numericId
-  );
-
-  queue.skipped.push(numericId);
+  if (!queue.skipped.includes(numericId)) {
+    queue.skipped.push(numericId);
+  }
 
   saveFeedQueue(queue, category);
-
 }
 
 /*
@@ -709,6 +1064,11 @@ lighterTab?.addEventListener("click", () => {
 
 let draftTimer;
 
+let lastSavedDraftPostId = null;
+let lastSavedDraftText = "";
+
+let pendingDraft = null;
+
 function showDraftStatus(text, saving = false) {
   const status = document.getElementById("draftStatus");
   if (!status) return;
@@ -751,56 +1111,503 @@ async function loadDraft() {
 }
 
 function enableDraftAutosave() {
-  const input = document.getElementById("responseInput");
+
+  const input =
+    document.getElementById("responseInput");
 
   if (!input || !currentPost) return;
 
+  /*
+   * Track which draft is currently loaded
+   * into the response box.
+   */
+  lastSavedDraftPostId =
+    Number(currentPost.id);
+
+  lastSavedDraftText =
+    input.value.trim();
+
   input.oninput = () => {
-    showDraftStatus("Saving…", true);
 
-    clearTimeout(draftTimer);
+    /*
+     * Capture the post and text at the exact
+     * moment the user edits the response.
+     */
+    const postId =
+      Number(currentPost.id);
 
+    const draftText =
+  input.value.trim();
+
+/*
+ * Remember the latest draft immediately.
+ * This allows us to flush it if the user
+ * navigates away before the 500ms debounce fires.
+ */
+pendingDraft = {
+  postId,
+  draftText
+};
+
+/*
+ * Reset the debounce timer.
+ */
+clearTimeout(draftTimer);
+
+    /*
+     * Wait until the user pauses typing before
+     * doing any status update or database work.
+     */
     draftTimer = setTimeout(async () => {
-      const text = input.value.trim();
 
-      if (text) {
-        const { error } = await client
+      /*
+       * The user may have moved to another post
+       * while the timer was waiting.
+       */
+      if (!Number.isFinite(postId)) {
+        return;
+      }
+
+/*
+ * --------------------------------------------------
+ * EMPTY DRAFT
+ * --------------------------------------------------
+ *
+ * Empty input must always be handled first.
+ * Even if the previously tracked text is also empty,
+ * the delete path needs to be evaluated explicitly.
+ */
+if (!draftText) {
+
+  showDraftStatus(
+    "Removing draft…",
+    true
+  );
+
+  const { error } =
+    await client
+      .from("response_drafts")
+      .delete()
+      .eq("post_id", postId)
+      .eq(
+        "responder_anon_id",
+        currentUser.id
+      );
+
+  if (error) {
+    console.error(
+      "Draft delete error:",
+      error
+    );
+
+    return;
+  }
+
+  lastSavedDraftPostId =
+    null;
+
+  lastSavedDraftText =
+    "";
+
+  /*
+   * Remove the post from the local
+   * draft-ID cache.
+   */
+  cachedDraftPostIds =
+    cachedDraftPostIds.filter(
+      id =>
+        Number(id) !== postId
+    );
+
+  /*
+   * Protect this post from any stale
+   * background draft cleanup.
+   */
+  clearedDraftPostIds.add(
+    postId
+  );
+
+  try {
+
+    const cacheKey =
+      getDraftPostIdsCacheKey();
+
+    if (cacheKey) {
+
+      sessionStorage.setItem(
+        cacheKey,
+        JSON.stringify(
+          cachedDraftPostIds
+        )
+      );
+
+    }
+
+  } catch (error) {
+
+    console.warn(
+      "DRAFTS: failed to update session cache:",
+      error
+    );
+
+  }
+
+  document
+    .getElementById("draftStatus")
+    ?.classList.add("hidden");
+
+  console.log(
+    "DRAFTS: deleted draft for post",
+    postId
+  );
+
+  restoreClearedDraftToFeed(
+    postId
+  );
+
+  return;
+}
+
+/*
+ * --------------------------------------------------
+ * UNCHANGED DRAFT
+ * --------------------------------------------------
+ */
+if (
+  postId === lastSavedDraftPostId &&
+  draftText === lastSavedDraftText
+) {
+
+  console.log(
+    "DRAFTS: unchanged — skipping save",
+    postId
+  );
+
+  return;
+}
+
+      /*
+       * --------------------------------------------------
+       * CHANGED DRAFT
+       * --------------------------------------------------
+       */
+      showDraftStatus(
+        "Saving…",
+        true
+      );
+
+      const { error } =
+        await client
           .from("response_drafts")
           .upsert(
             {
-              post_id: currentPost.id,
-              responder_anon_id: currentUser.id,
-              draft_text: text,
-              updated_at: new Date().toISOString(),
+              post_id: postId,
+              responder_anon_id:
+                currentUser.id,
+              draft_text: draftText,
+              updated_at:
+                new Date().toISOString()
             },
             {
-              onConflict: "post_id,responder_anon_id",
+              onConflict:
+                "post_id,responder_anon_id"
             }
           );
 
-        if (error) console.error("Draft save error:", error);
+      if (error) {
 
-        showDraftStatus("🌿 Draft saved");
-      } else {
-        await client
-          .from("response_drafts")
-          .delete()
-          .eq("post_id", currentPost.id)
-          .eq("responder_anon_id", currentUser.id);
+        console.error(
+          "Draft save error:",
+          error
+        );
 
-        document.getElementById("draftStatus")
-          ?.classList.add("hidden");
+        return;
       }
+
+      /*
+       * Remember exactly what was saved.
+       */
+      lastSavedDraftPostId =
+  postId;
+
+lastSavedDraftText =
+  draftText;
+
+pendingDraft = null;
+
+      /*
+       * Keep the lightweight draft-ID cache
+       * synchronized with Supabase.
+       */
+      const draftIds =
+        new Set(
+          cachedDraftPostIds.map(Number)
+        );
+
+      draftIds.add(postId);
+
+      cachedDraftPostIds =
+        [...draftIds];
+
+      try {
+
+        const cacheKey =
+          getDraftPostIdsCacheKey();
+
+        if (cacheKey) {
+
+          sessionStorage.setItem(
+            cacheKey,
+            JSON.stringify(
+              cachedDraftPostIds
+            )
+          );
+
+        }
+
+      } catch (error) {
+
+        console.warn(
+          "DRAFTS: failed to update session cache:",
+          error
+        );
+
+      }
+
+      showDraftStatus(
+        "🌿 Draft saved"
+      );
+
     }, 500);
   };
 }
 
+async function flushPendingDraft() {
+
+  if (
+    !pendingDraft ||
+    !currentUser?.id ||
+    !currentSession?.access_token
+  ) {
+    return;
+  }
+
+  const {
+    postId,
+    draftText
+  } = pendingDraft;
+
+  if (!Number.isFinite(postId)) {
+    return;
+  }
+
+  /*
+   * Cancel the normal debounce timer.
+   */
+  clearTimeout(draftTimer);
+
+  const url =
+    `${SUPABASE_URL}/rest/v1/response_drafts`;
+
+  const headers = {
+    "Content-Type": "application/json",
+    "apikey": SUPABASE_ANON_KEY,
+    "Authorization":
+      `Bearer ${currentSession.access_token}`,
+    "Prefer":
+      "resolution=merge-duplicates,return=minimal"
+  };
+
+  /*
+   * Nothing typed — remove the draft.
+   */
+  if (!draftText) {
+
+    fetch(
+      `${url}?post_id=eq.${postId}&responder_anon_id=eq.${currentUser.id}`,
+      {
+        method: "DELETE",
+        headers,
+        keepalive: true
+      }
+    );
+
+    console.log(
+      "DRAFTS: flushed pending delete",
+      postId
+    );
+
+    pendingDraft = null;
+
+    return;
+  }
+
+  /*
+   * Save the latest text immediately.
+   *
+   * keepalive allows the browser to continue
+   * the request while the page is unloading.
+   */
+  fetch(
+    url,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        post_id: postId,
+        responder_anon_id:
+          currentUser.id,
+        draft_text: draftText,
+        updated_at:
+          new Date().toISOString()
+      }),
+      keepalive: true
+    }
+  );
+
+  console.log(
+    "DRAFTS: flushed pending save",
+    postId
+  );
+
+  pendingDraft = null;
+}
+
+function restoreClearedDraftToFeed(postId) {
+
+  const numericId =
+    Number(postId);
+
+  if (!Number.isFinite(numericId)) {
+    return;
+  }
+
+  const alreadyResponded =
+    respondedPostIds.some(
+      id =>
+        Number(id) === numericId
+    );
+
+  if (alreadyResponded) {
+
+    console.log(
+      "DRAFTS: not restoring responded post",
+      numericId
+    );
+
+    return;
+  }
+
+  const queue =
+    getFeedQueue(selectedCategory);
+
+  /*
+   * Remove the post from both queues first.
+   *
+   * This prevents duplicates if the post was
+   * already sitting somewhere in the queue.
+   */
+  queue.active =
+    queue.active.filter(
+      id =>
+        Number(id) !== numericId
+    );
+
+  queue.skipped =
+    queue.skipped.filter(
+      id =>
+        Number(id) !== numericId
+    );
+
+  /*
+   * A cleared draft behaves like a skipped post.
+   *
+   * It should return to the feed, but behind
+   * all new / unseen posts.
+   */
+  queue.skipped.push(
+    numericId
+  );
+
+  saveFeedQueue(
+    queue,
+    selectedCategory
+  );
+
+  console.log(
+    "DRAFTS: cleared draft, restored to skipped backlog",
+    numericId,
+    "active =",
+    queue.active.length,
+    "skipped =",
+    queue.skipped.length
+  );
+}
+
 async function clearDraft(postId) {
-  await client
-    .from("response_drafts")
-    .delete()
-    .eq("post_id", postId)
-    .eq("responder_anon_id", currentUser.id);
+
+  const { error } =
+    await client
+      .from("response_drafts")
+      .delete()
+      .eq("post_id", postId)
+      .eq(
+        "responder_anon_id",
+        currentUser.id
+      );
+
+  if (error) {
+
+    console.error(
+      "DRAFTS: failed to delete draft:",
+      error
+    );
+
+    return;
+
+  }
+
+  /*
+   * Keep the local draft-ID cache synchronized.
+   */
+  cachedDraftPostIds =
+    cachedDraftPostIds.filter(
+      id => Number(id) !== Number(postId)
+    );
+
+  try {
+
+    const cacheKey =
+      getDraftPostIdsCacheKey();
+
+    if (cacheKey) {
+
+      sessionStorage.setItem(
+        cacheKey,
+        JSON.stringify(
+          cachedDraftPostIds
+        )
+      );
+
+    }
+
+  } catch (error) {
+
+    console.warn(
+      "DRAFTS: failed to update session cache:",
+      error
+    );
+
+  }
+
+  /*
+ * The draft is genuinely gone.
+ *
+ * Do not restore the post to the feed here.
+ * clearDraft() is called after a successful response,
+ * so the post has already been removed from the queue.
+ */
+
 }
 
 /* -----------------------------
@@ -827,6 +1634,166 @@ function hideEmptyResponsePopup(){
 
 }
 
+async function loadSavedPostsInBackground() {
+
+  if (!currentUser?.id) return;
+
+  const cacheKey =
+    getSavedPostsCacheKey();
+
+  /*
+   * Restore saved post IDs from the session cache.
+   *
+   * This is enough to immediately determine
+   * whether the current post is saved.
+   */
+  if (cacheKey) {
+
+    try {
+
+      const cached =
+        sessionStorage.getItem(
+          cacheKey
+        );
+
+      if (cached) {
+
+        const parsed =
+          JSON.parse(cached);
+
+        if (Array.isArray(parsed)) {
+
+          savedPostIds =
+            new Set(
+              parsed
+                .map(Number)
+                .filter(Boolean)
+            );
+
+          console.log(
+            "SAVED POSTS: restored from session cache",
+            savedPostIds.size
+          );
+
+          /*
+           * Refresh the current post's Save button
+           * immediately using the cached state.
+           */
+          if (currentPost) {
+
+            updateSaveState(
+              currentPost.id
+            );
+
+          }
+
+          return;
+
+        }
+
+      }
+
+    } catch (error) {
+
+      console.warn(
+        "SAVED POSTS: session cache unavailable:",
+        error
+      );
+
+    }
+
+  }
+
+  /*
+   * No cache exists.
+   * Fetch the saved post IDs from Supabase.
+   */
+  const start =
+    performance.now();
+
+  const result =
+    await client
+      .from("saved_posts")
+      .select("post_id")
+      .eq(
+        "user_id",
+        currentUser.id
+      );
+
+  const elapsed =
+    Math.round(
+      performance.now() - start
+    );
+
+  console.log(
+    "BACKGROUND: saved posts finished",
+    elapsed,
+    "ms"
+  );
+
+  if (!result.error) {
+
+    savedPostIds =
+      new Set(
+        (result.data || []).map(
+          row => Number(row.post_id)
+        )
+      );
+
+    /*
+     * Save the lightweight ID list so future
+     * page loads don't need this query.
+     */
+    if (cacheKey) {
+
+      try {
+
+        sessionStorage.setItem(
+          cacheKey,
+          JSON.stringify(
+            [...savedPostIds]
+          )
+        );
+
+        console.log(
+          "SAVED POSTS: saved to session cache",
+          savedPostIds.size
+        );
+
+      } catch (error) {
+
+        console.warn(
+          "SAVED POSTS: failed to save session cache:",
+          error
+        );
+
+      }
+
+    }
+
+    /*
+     * The first post may already be visible by
+     * the time saved posts finish loading.
+     */
+    if (currentPost) {
+
+      updateSaveState(
+        currentPost.id
+      );
+
+    }
+
+  } else {
+
+    console.error(
+      "Failed to load saved posts:",
+      result.error
+    );
+
+  }
+
+}
+
 async function initCriticalFeedData() {
 
   console.log(
@@ -841,38 +1808,142 @@ async function initCriticalFeedData() {
 
   const responsesPromise = (async () => {
 
-    const start = performance.now();
+  const cacheKey =
+    getRespondedPostsCacheKey();
 
-    const result = await client
-      .from("responses")
-      .select("post_id")
-      .eq("responder_anon_id", currentUser.id);
+  /*
+   * Restore responded post IDs from the
+   * session cache when available.
+   */
+  if (cacheKey) {
 
-    console.log(
-      "BACKGROUND: responses finished",
-      Math.round(performance.now() - start),
-      "ms"
-    );
+    try {
 
-    if (!result.error) {
-
-      respondedPostIds =
-        (result.data || []).map(
-          r => r.post_id
+      const cached =
+        sessionStorage.getItem(
+          cacheKey
         );
 
-      removeRespondedPostsFromQueue();
+      if (cached) {
 
-    } else {
+        const parsed =
+          JSON.parse(cached);
 
-      console.error(
-        "Failed to load responded posts:",
-        result.error
+        if (Array.isArray(parsed)) {
+
+          respondedPostIds =
+            parsed
+              .map(Number)
+              .filter(Boolean);
+
+          console.log(
+            "RESPONSES: restored from session cache",
+            respondedPostIds.length
+          );
+
+          removeRespondedPostsFromQueue();
+
+          return;
+
+        }
+
+      }
+
+    } catch (error) {
+
+      console.warn(
+        "RESPONSES: session cache unavailable:",
+        error
       );
 
     }
 
-  })();
+  }
+
+  /*
+   * No usable cache.
+   * Fetch responded post IDs from Supabase.
+   */
+  const start =
+    performance.now();
+
+  const result =
+    await client
+      .from("responses")
+      .select("post_id")
+      .eq(
+        "responder_anon_id",
+        currentUser.id
+      );
+
+  const elapsed =
+    Math.round(
+      performance.now() - start
+    );
+
+  console.log(
+    "RESPONSES QUERY TIME:",
+    elapsed,
+    "ms"
+  );
+
+  console.log(
+    "BACKGROUND: responses finished",
+    elapsed,
+    "ms"
+  );
+
+  if (!result.error) {
+
+    respondedPostIds =
+      (result.data || [])
+        .map(r => Number(r.post_id))
+        .filter(Boolean);
+
+    /*
+     * Save the lightweight ID list so
+     * subsequent page loads can avoid
+     * this Supabase request.
+     */
+    if (cacheKey) {
+
+      try {
+
+        sessionStorage.setItem(
+          cacheKey,
+          JSON.stringify(
+            respondedPostIds
+          )
+        );
+
+        console.log(
+          "RESPONSES: saved to session cache",
+          respondedPostIds.length
+        );
+
+      } catch (error) {
+
+        console.warn(
+          "RESPONSES: failed to save session cache:",
+          error
+        );
+
+      }
+
+    }
+
+    removeRespondedPostsFromQueue();
+
+  } else {
+
+    console.error(
+      "Failed to load responded post IDs:",
+      result.error
+    );
+
+  }
+
+})();
 
   const draftsPromise = (async () => {
 
@@ -891,119 +1962,10 @@ async function initCriticalFeedData() {
       result || [];
 
     removeDraftPostsFromQueue(
-      cachedDraftPostIds
-    );
+  [...cachedDraftPostIds]
+);
 
   })();
-
-    const savedPostsPromise = (async () => {
-
-    const start = performance.now();
-
-    const result = await client
-      .from("saved_posts")
-      .select("post_id")
-      .eq("user_id", currentUser.id);
-
-    console.log(
-      "BACKGROUND: saved posts finished",
-      Math.round(performance.now() - start),
-      "ms"
-    );
-
-    if (!result.error) {
-
-      savedPostIds = new Set(
-        (result.data || []).map(
-          row => Number(row.post_id)
-        )
-      );
-
-    } else {
-
-      console.error(
-        "Failed to load saved posts:",
-        result.error
-      );
-
-    }
-
-  })();
-
-  const blockedPromise = (async () => {
-
-    const start = performance.now();
-
-    const result = await client
-      .from("response_reports")
-      .select("reported_user_id")
-      .eq("reporter_id", currentUser.id);
-
-    console.log(
-      "BACKGROUND: blocked finished",
-      Math.round(performance.now() - start),
-      "ms"
-    );
-
-    return result;
-
-  })();
-
-  const blockedByPromise = (async () => {
-
-    const start = performance.now();
-
-    const result = await client
-      .from("response_reports")
-      .select("reporter_id")
-      .eq("reported_user_id", currentUser.id);
-
-    console.log(
-      "BACKGROUND: blockedBy finished",
-      Math.round(performance.now() - start),
-      "ms"
-    );
-
-    return result;
-
-  })();
-
-  /*
-   * Build the blocked-user list once those two
-   * background queries finish.
-   */
-
-  Promise.all([
-    blockedPromise,
-    blockedByPromise
-  ]).then(
-    ([
-      blockedResult,
-      blockedByResult
-    ]) => {
-
-      const peopleIReported =
-        (blockedResult?.data || [])
-          .map(r => r.reported_user_id);
-
-      const peopleWhoReportedMe =
-        (blockedByResult?.data || [])
-          .map(r => r.reporter_id);
-
-      blockedUserIds = [
-        ...new Set([
-          ...peopleIReported,
-          ...peopleWhoReportedMe
-        ].filter(Boolean))
-      ];
-
-      console.log(
-        "BACKGROUND: blocked users ready",
-        blockedUserIds.length
-      );
-
-    }
-  );
 
   /*
    * IMPORTANT:
@@ -1018,9 +1980,88 @@ async function initCriticalFeedData() {
 
 async function initNonCriticalData() {
 
-  const { data, error } = await client
-    .from("response_options")
-    .select("*");
+  const CACHE_KEY =
+    "inyeon_response_options";
+
+  /*
+   * Response options are reference data and do not
+   * need to be fetched on every page load.
+   *
+   * sessionStorage keeps the cache limited to the
+   * current browser session.
+   */
+
+  try {
+
+    const cached =
+      sessionStorage.getItem(
+        CACHE_KEY
+      );
+
+    if (cached) {
+
+      const parsed =
+        JSON.parse(cached);
+
+      if (Array.isArray(parsed)) {
+
+        optionsByCategory = {};
+
+        parsed.forEach(opt => {
+
+          if (
+            !optionsByCategory[
+              opt.need_category
+            ]
+          ) {
+            optionsByCategory[
+              opt.need_category
+            ] = [];
+          }
+
+          optionsByCategory[
+            opt.need_category
+          ].push(opt);
+
+        });
+
+        console.log(
+          "OPTIONS: restored from session cache"
+        );
+
+        return;
+      }
+
+    }
+
+  } catch (error) {
+
+    console.warn(
+      "OPTIONS: session cache unavailable:",
+      error
+    );
+
+  }
+
+  /*
+   * No usable cache — fetch from Supabase.
+   */
+
+  const start =
+    performance.now();
+
+  const { data, error } =
+    await client
+      .from("response_options")
+      .select("*");
+
+  console.log(
+    "OPTIONS: Supabase query finished",
+    Math.round(
+      performance.now() - start
+    ),
+    "ms"
+  );
 
   if (error) {
 
@@ -1034,10 +2075,16 @@ async function initNonCriticalData() {
 
   optionsByCategory = {};
 
-  data.forEach(opt => {
+  (data || []).forEach(opt => {
 
-    if (!optionsByCategory[opt.need_category]) {
-      optionsByCategory[opt.need_category] = [];
+    if (
+      !optionsByCategory[
+        opt.need_category
+      ]
+    ) {
+      optionsByCategory[
+        opt.need_category
+      ] = [];
     }
 
     optionsByCategory[
@@ -1045,6 +2092,32 @@ async function initNonCriticalData() {
     ].push(opt);
 
   });
+
+  /*
+   * Save the raw options so the next page load
+   * can avoid the Supabase request.
+   */
+
+  try {
+
+    sessionStorage.setItem(
+      CACHE_KEY,
+      JSON.stringify(data || [])
+    );
+
+    console.log(
+      "OPTIONS: saved to session cache"
+    );
+
+  } catch (error) {
+
+    console.warn(
+      "OPTIONS: failed to save session cache:",
+      error
+    );
+
+  }
+
 }
 
 async function loadProfileInBackground() {
@@ -1079,10 +2152,73 @@ async function getDraftPostIds() {
 
   if (!currentUser?.id) return [];
 
+  /*
+   * Restore the user's draft-post ID list from
+   * sessionStorage first.
+   *
+   * The actual draft text is still loaded from
+   * Supabase when the post is opened.
+   */
+  try {
+
+    const cached =
+      sessionStorage.getItem(
+        getDraftPostIdsCacheKey()
+      );
+
+    if (cached) {
+
+      const parsed =
+        JSON.parse(cached);
+
+      if (Array.isArray(parsed)) {
+
+        console.log(
+          "DRAFTS: restored from session cache",
+          parsed.length
+        );
+
+        return parsed
+          .map(Number)
+          .filter(Boolean);
+
+      }
+
+    }
+
+  } catch (error) {
+
+    console.warn(
+      "DRAFTS: session cache unavailable:",
+      error
+    );
+
+  }
+
+  /*
+   * No usable cache exists.
+   * Fetch the draft IDs from Supabase.
+   */
+  const start = performance.now();
+
   const { data, error } = await client
     .from("response_drafts")
     .select("post_id")
-    .eq("responder_anon_id", currentUser.id);
+    .eq(
+      "responder_anon_id",
+      currentUser.id
+    );
+
+  const elapsed =
+    Math.round(
+      performance.now() - start
+    );
+
+  console.log(
+    "DRAFT QUERY TIME:",
+    elapsed,
+    "ms"
+  );
 
   if (error) {
 
@@ -1095,23 +2231,53 @@ async function getDraftPostIds() {
 
   }
 
-  return (data || [])
-    .map(row => Number(row.post_id))
-    .filter(Boolean);
+  const draftIds =
+    (data || [])
+      .map(row => Number(row.post_id))
+      .filter(Boolean);
 
+  /*
+   * Save only the lightweight ID list.
+   */
+  try {
+
+    sessionStorage.setItem(
+      getDraftPostIdsCacheKey(),
+      JSON.stringify(draftIds)
+    );
+
+    console.log(
+      "DRAFTS: saved to session cache",
+      draftIds.length
+    );
+
+  } catch (error) {
+
+    console.warn(
+      "DRAFTS: failed to save session cache:",
+      error
+    );
+
+  }
+
+  return draftIds;
 }
 
 function removeDraftPostsFromQueue(
   draftPostIds,
   category = selectedCategory
 ) {
-
   if (!draftPostIds.length) return;
 
   const queue = getFeedQueue(category);
 
   const draftIds = new Set(
-    draftPostIds.map(Number)
+    draftPostIds
+      .map(Number)
+      .filter(
+        id =>
+          !clearedDraftPostIds.has(id)
+      )
   );
 
   queue.active = queue.active.filter(
@@ -1123,13 +2289,19 @@ function removeDraftPostsFromQueue(
   );
 
   console.log(
-  "QUEUE REMOVE DRAFTS:",
-  "active after removal =", queue.active.length,
-  "skipped =", queue.skipped.length
-);
+    "QUEUE REMOVE DRAFTS:",
+    "protected cleared drafts =",
+    [...clearedDraftPostIds],
+    "active after removal =",
+    queue.active.length,
+    "skipped =",
+    queue.skipped.length
+  );
 
-  saveFeedQueue(queue, category);
-
+  saveFeedQueue(
+    queue,
+    category
+  );
 }
 
 async function hydrateSkippedPosts(
@@ -1169,43 +2341,88 @@ async function hydrateSkippedPosts(
       const start =
         performance.now();
 
-      const {
-        data,
-        error
-      } = await client.rpc(
-        "get_feed_posts_by_ids",
-        {
-          p_post_ids: idsToFetch
-        }
-      );
+      const rpcStart = performance.now();
+
+const {
+  data,
+  error
+} = await client.rpc(
+  "get_feed_posts_by_ids",
+  {
+    p_post_ids: idsToFetch
+  }
+);
+
+console.log(
+  "FEED HYDRATION RPC TIME:",
+  Math.round(
+    performance.now() - rpcStart
+  ),
+  "ms"
+);
 
       console.log(
-        "FEED: skipped posts hydrated",
-        Math.round(
-          performance.now() - start
-        ),
-        "ms"
-      );
+  "FEED: skipped posts hydrated",
+  Math.round(
+    performance.now() - start
+  ),
+  "ms"
+);
 
-      if (error) {
+if (error) {
 
-        console.error(
-          "Skipped post hydration failed:",
-          error
-        );
+  console.error(
+    "Skipped post hydration failed:",
+    error
+  );
 
-        return;
+  return;
 
-      }
+}
 
-      (data || []).forEach(post => {
+console.log(
+  "FEED HYDRATION RPC:",
+  {
+    requestedIds: idsToFetch,
+    returnedCount: data?.length || 0,
+    returnedIds: (data || []).map(
+      post => Number(post.id)
+    ),
+    error
+  }
+);
 
-        feedPostCache.set(
-          Number(post.id),
-          post
-        );
+(data || []).forEach(post => {
 
-      });
+  feedPostCache.set(
+    Number(post.id),
+    post
+  );
+
+});
+
+/*
+ * Persist newly hydrated skipped posts so they
+ * are available immediately on the next session.
+ */
+savePersistedSkippedPosts(
+  category,
+  queue.skipped
+);
+
+console.log(
+  "FEED CACHE AFTER HYDRATION:",
+  [...feedPostCache.keys()]
+);
+
+console.log(
+  "FEED: persisted hydrated skipped posts"
+);
+
+console.log(
+  "FEED SKIPPED IDS:",
+  [...queue.skipped]
+);
 
     })();
 
@@ -1225,7 +2442,16 @@ async function hydrateSkippedPosts(
    Fetch next matching post
 ----------------------------- */
 
-async function fetchNextPost(excludeCurrent = false) {
+async function fetchNextPost(
+  excludeCurrent = false,
+  consumeSkipped = true
+) {
+
+  console.trace(
+  "FETCH NEXT POST CALLER",
+  "excludeCurrent =",
+  excludeCurrent
+);
 
   const fetchStart =
     performance.now();
@@ -1239,42 +2465,193 @@ async function fetchNextPost(excludeCurrent = false) {
    */
   if (draftPostId && !draftPostLoaded) {
 
-    draftPostLoaded = true;
+  draftPostLoaded = true;
 
-    const { data, error } = await client
-  .from("posts")
-  .select("id, content, anon_id, moment_type, created_at")
-  .eq("id", Number(draftPostId))
-  .maybeSingle();
+  const numericDraftPostId =
+    Number(draftPostId);
 
-    if (error) {
+  /*
+ * DIRECT POST CACHE
+ *
+ * First check the in-memory feed cache.
+ * Then check the session cache populated
+ * by given-responses.js before navigation.
+ */
+const cachedPost =
+  feedPostCache.get(
+    numericDraftPostId
+  );
 
-      console.error(
-        "Direct post load failed:",
-        error
+if (cachedPost) {
+
+  /*
+   * Restore the correct feed category
+   * for a direct/draft post.
+   *
+   * support   → heavier / difficult
+   * celebrate → lighter / light
+   */
+  if (cachedPost.moment_type === "celebrate") {
+    selectedCategory = "light";
+  } else {
+    selectedCategory = "difficult";
+  }
+
+  updateSegmentUI();
+
+  console.log(
+    "DIRECT POST: restored from feed cache",
+    numericDraftPostId,
+    "category =",
+    selectedCategory
+  );
+
+  return {
+    post: cachedPost,
+    options:
+      optionsByCategory[cachedPost.moment_type] || []
+  };
+
+}
+
+const sessionPostKey =
+  `inyeon_direct_post_${numericDraftPostId}`;
+
+try {
+
+  const storedPost =
+    sessionStorage.getItem(
+      sessionPostKey
+    );
+
+  if (storedPost) {
+
+    const parsedPost =
+      JSON.parse(storedPost);
+
+    if (
+      parsedPost &&
+      Number(parsedPost.id) ===
+        numericDraftPostId
+    ) {
+
+      feedPostCache.set(
+        numericDraftPostId,
+        parsedPost
       );
 
-      return null;
-
-    }
-
-    if (!data) {
-
-      console.error(
-        "Direct post not found:",
-        draftPostId
+      sessionStorage.removeItem(
+        sessionPostKey
       );
 
-      return null;
+      console.log(
+        "DIRECT POST: restored from session cache",
+        numericDraftPostId
+      );
 
+      return {
+        post: parsedPost,
+        options: []
+      };
     }
-
-    return {
-  post: data,
-  options: []
-};
 
   }
+
+} catch (error) {
+
+  console.warn(
+    "DIRECT POST: session cache restore failed:",
+    error
+  );
+
+}
+
+  /*
+   * --------------------------------------------------
+   * DIRECT POST FALLBACK
+   * --------------------------------------------------
+   *
+   * The post is not cached, so fetch it from
+   * Supabase and immediately add it to the cache.
+   */
+
+  const directPostStart =
+    performance.now();
+
+  const { data, error } =
+    await client
+      .from("posts")
+      .select(
+        "id, content, anon_id, moment_type, created_at"
+      )
+      .eq(
+        "id",
+        numericDraftPostId
+      )
+      .maybeSingle();
+
+  console.log(
+    "DIRECT POST QUERY TIME:",
+    Math.round(
+      performance.now() -
+      directPostStart
+    ),
+    "ms"
+  );
+
+  if (error) {
+
+    console.error(
+      "Direct post load failed:",
+      error
+    );
+
+    return null;
+
+  }
+
+  if (!data) {
+
+    console.error(
+      "Direct post not found:",
+      draftPostId
+    );
+
+    return null;
+
+  }
+
+  feedPostCache.set(
+  numericDraftPostId,
+  data
+);
+
+/*
+ * Restore the correct feed category
+ * for a direct/draft post.
+ */
+if (data.moment_type === "celebrate") {
+  selectedCategory = "light";
+} else {
+  selectedCategory = "difficult";
+}
+
+updateSegmentUI();
+
+console.log(
+  "DIRECT POST: fetched from Supabase and cached",
+  numericDraftPostId,
+  "category =",
+  selectedCategory
+);
+
+return {
+  post: data,
+  options:
+    optionsByCategory[data.moment_type] || []
+};
+
+}
 
   /*
    * Remove anything the user has already answered.
@@ -1289,6 +2666,15 @@ removeDraftPostsFromQueue(
 );
 
   let queue = getFeedQueue();
+
+  console.log(
+  "FEED DEBUG: after queue restore",
+  Math.round(
+    performance.now() - fetchStart
+  ),
+  "ms"
+);
+
 
   /*
    * --------------------------------------------------
@@ -1308,66 +2694,73 @@ removeDraftPostsFromQueue(
 );
 
 if (
-  queue.active.length < FEED_QUEUE_REFILL_THRESHOLD &&
-  queue.skipped.length === 0
+  queue.active.length === 0
 ) {
 
-        const existingIds = [
-      ...queue.active,
-      ...respondedPostIds,
-      ...draftPostIds
-    ].map(Number);
+  const category =
+    selectedCategory;
+
+  const existingIds = [
+  ...queue.active,
+  ...respondedPostIds,
+  ...draftPostIds
+].map(Number);
+
+  /*
+   * If a refill is already running,
+   * reuse that promise instead of
+   * starting another Supabase request.
+   */
+  if (!feedRefillPromise[category]) {
 
     console.log(
-  "FEED EXCLUSIONS:",
-  "existingIds =", existingIds.length,
-  "active =", queue.active.length,
-  "skipped =", queue.skipped.length,
-  "responded =", respondedPostIds?.length || 0,
-  "drafts =", draftPostIds?.length || 0
-);
+      "FEED: starting personalized RPC",
+      Math.round(
+        performance.now() - fetchStart
+      ),
+      "ms"
+    );
 
-    /*
-     * Ask Supabase for the next personalized
-     * batch for THIS user.
-     *
-     * The ordering is deterministic per user,
-     * so different users naturally see different
-     * posts at the front of their feed.
-     */
+    feedRefillPromise[category] =
+  (async () => {
 
-    console.log(
-  "FEED: starting personalized RPC",
-  Math.round(
-    performance.now() - fetchStart
-  ),
-  "ms"
+    const rpcStart =
+      performance.now();
+
+      console.log(
+  "FEED RPC EXCLUDED IDS:",
+  existingIds
 );
 
     const {
-  data: personalizedPosts,
-  error
-} = await client.rpc(
-  "get_personalized_feed_posts_data",
-  {
-    p_moment_type: getMomentType(),
-    p_excluded_ids: existingIds,
-    p_limit: FEED_FETCH_BATCH_SIZE
-  }
-);
+      data: personalizedPosts,
+      error
+    } = await client.rpc(
+      "get_personalized_feed_posts_data",
+      {
+        p_moment_type:
+          getMomentType(),
+
+        p_excluded_ids:
+          existingIds,
+
+        p_limit:
+          FEED_FETCH_BATCH_SIZE
+      }
+    );
 
     console.log(
-  "FEED: personalized RPC finished",
-  Math.round(
-    performance.now() - fetchStart
-  ),
-  "ms"
-);
+      "FEED: personalized RPC finished",
+      Math.round(
+        performance.now() - rpcStart
+      ),
+      "ms"
+    );
 
-console.log(
-  "FEED: personalized posts returned:",
-  personalizedPosts?.length || 0
-);
+    console.log(
+      "FEED: personalized posts returned:",
+      personalizedPosts?.length || 0
+    );
 
     if (error) {
 
@@ -1376,43 +2769,95 @@ console.log(
         error
       );
 
-    } else if (
+      return;
+    }
+
+    if (
       personalizedPosts &&
       personalizedPosts.length > 0
     ) {
 
-      /*
-       * The database has already ordered these
-       * specifically for this user.
-       *
-       * Do NOT shuffle them here.
-       */
-      personalizedPosts.forEach(post => {
+      personalizedPosts.forEach(
+        post => {
 
-  feedPostCache.set(
-    Number(post.id),
-    post
-  );
+          feedPostCache.set(
+            Number(post.id),
+            post
+          );
 
-});
+        }
+      );
 
-addPostsToQueue(
-  personalizedPosts.map(
-    post => post.id
-  )
+      const newPostIds =
+        personalizedPosts.map(
+          post => post.id
+        );
+
+      addPostsToQueue(
+  newPostIds,
+  category
 );
 
-queue = getFeedQueue();
-
-console.log(
-  "FEED QUEUE AFTER REFILL:",
-  "active =", queue.active.length,
-  "skipped =", queue.skipped.length
-);
+      savePersistedActivePosts(
+        category,
+        newPostIds
+      );
 
     }
 
+    const updatedQueue =
+      getFeedQueue(category);
+
+    console.log(
+      "FEED QUEUE AFTER REFILL:",
+      "active =",
+      updatedQueue.active.length,
+      "skipped =",
+      updatedQueue.skipped.length
+    );
+
+  })()
+  .finally(() => {
+
+    feedRefillPromise[category] =
+      null;
+
+  });
+
   }
+
+  /*
+   * If we already have active posts,
+   * let the current fetch continue immediately.
+   *
+   * Only wait when the queue is completely
+   * empty and we have nothing to display.
+   */
+  if (
+  queue.active.length === 0 &&
+  queue.skipped.length === 0
+) {
+  await feedRefillPromise[category];
+
+  queue =
+    getFeedQueue(category);
+
+      console.log(
+    "FEED DEBUG: after refill wait",
+    Math.round(
+      performance.now() - fetchStart
+    ),
+    "ms",
+    "active =",
+    queue.active.length,
+    "skipped =",
+    queue.skipped.length
+  );
+
+  }
+
+}
+
 
   /*
   /* --------------------------------------------------
@@ -1432,6 +2877,8 @@ console.log(
 
 let candidateIds = [];
 
+let consumedSkippedPost = false;
+
 if (queue.active.length > 0) {
 
   candidateIds = [
@@ -1439,46 +2886,81 @@ if (queue.active.length > 0) {
   ];
 
   if (excludeCurrent && currentPost?.id) {
-    candidateIds = candidateIds.filter(
-      id => Number(id) !== Number(currentPost.id)
-    );
+
+    candidateIds =
+      candidateIds.filter(
+        id =>
+          Number(id) !==
+          Number(currentPost.id)
+      );
+
   }
 
-} else {
+  } else {
 
-  candidateIds = [
-    ...queue.skipped
-  ].filter(
-    id =>
-      Number(id) !==
-      Number(currentPost?.id)
-  );
+    /*
+     * No active posts remain.
+     *
+     * Start looking through the skipped backlog.
+     *
+     * IMPORTANT:
+     * Do NOT remove the skipped post here.
+     *
+     * fetchNextPost() may only be preloading it.
+     * The skipped post should be removed from the
+     * backlog only when it is actually displayed.
+     */
+    candidateIds = [
+      ...queue.skipped
+    ].filter(
+      id =>
+        Number(id) !==
+        Number(currentPost?.id)
+    );
 
-}
+    if (
+      consumeSkipped &&
+      candidateIds.length > 0
+    ) {
+
+      consumedSkippedPost = true;
+
+      console.log(
+        "FEED: selected skipped post for display",
+        Number(candidateIds[0]),
+        "remaining skipped =",
+        queue.skipped.length
+      );
+    }
+  }
+
+console.log(
+  "FEED DEBUG: after candidate selection",
+  Math.round(
+    performance.now() - fetchStart
+  ),
+  "ms",
+  "candidates =",
+  candidateIds.length,
+  "consumedSkipped =",
+  consumedSkippedPost
+);
 
 if (candidateIds.length === 0) {
-
   return null;
-
 }
 
 /*
  * Only retrieve a small number of actual posts
  * from Supabase at a time.
+ *
+ * If skipped posts are already cached, continue
+ * immediately and hydrate anything missing in
+ * the background.
+ *
+ * If there are no cached skipped posts, hydrate
+ * one post before continuing.
  */
-
-if (
-  !excludeCurrent &&
-  queue.active.length === 0 &&
-  queue.skipped.length > 0
-) {
-
-  await hydrateSkippedPosts(
-    selectedCategory,
-    2
-  );
-
-}
 
 let cachedCandidateIds = candidateIds.filter(
   id => feedPostCache.has(Number(id))
@@ -1487,6 +2969,57 @@ let cachedCandidateIds = candidateIds.filter(
 let uncachedCandidateIds = candidateIds.filter(
   id => !feedPostCache.has(Number(id))
 );
+
+let skippedHydrationPromise = null;
+
+if (
+  !excludeCurrent &&
+  queue.active.length === 0 &&
+  (
+    queue.skipped.length > 0 ||
+    consumedSkippedPost
+  ) &&
+  uncachedCandidateIds.length > 0
+) {
+
+  skippedHydrationPromise =
+    hydrateSkippedPosts(
+      selectedCategory,
+      1
+    );
+
+  /*
+   * If we already have a cached candidate,
+   * do not wait for hydration.
+   */
+  if (cachedCandidateIds.length === 0) {
+
+  await skippedHydrationPromise;
+
+  console.log(
+    "FEED DEBUG: after skipped hydration",
+    Math.round(
+      performance.now() - fetchStart
+    ),
+    "ms"
+  );
+
+  /*
+   * Hydration may have populated the
+     * in-memory cache, so refresh the lists.
+     */
+    cachedCandidateIds =
+      candidateIds.filter(
+        id => feedPostCache.has(Number(id))
+      );
+
+    uncachedCandidateIds =
+      candidateIds.filter(
+        id => !feedPostCache.has(Number(id))
+      );
+
+  }
+}
 
 /*
  * Skipped posts should normally have already been
@@ -1602,6 +3135,18 @@ if (
 
 }
 
+console.log(
+  "FEED DEBUG: before post lookup",
+  Math.round(
+    performance.now() - fetchStart
+  ),
+  "ms",
+  "posts =",
+  posts.length,
+  "batchIds =",
+  batchIds.length
+);
+
 const postMap = new Map(
   (posts || []).map(post => [
     Number(post.id),
@@ -1620,9 +3165,16 @@ for (const id of batchIds) {
 
   if (!post) continue;
 
-  return {
+      const cameFromSkipped =
+      queue.active.length === 0 &&
+      candidateIds.includes(
+        Number(post.id)
+      );
+
+return {
   post,
-  options: []
+  options: [],
+  cameFromSkipped
 };
 }
 
@@ -1669,7 +3221,7 @@ queue.skipped =
 
 saveFeedQueue(queue);
 
-return fetchNextPost();
+return null;
 
 }
 
@@ -1728,15 +3280,29 @@ async function toggleSave(){
 }else{
 
   savedPostIds.add(
-    Number(currentPost.id)
-  );
+  Number(currentPost.id)
+);
+
+const cacheKey =
+  getSavedPostsCacheKey();
+
+if (cacheKey) {
 
   sessionStorage.setItem(
-    "newlySavedPostId",
-    currentPost.id
+    cacheKey,
+    JSON.stringify(
+      [...savedPostIds]
+    )
   );
 
-  showToast("Saved for later");
+}
+
+sessionStorage.setItem(
+  "newlySavedPostId",
+  currentPost.id
+);
+
+showToast("Saved for later");
 
 }
 
@@ -1756,10 +3322,24 @@ async function toggleSave(){
 }else{
 
   savedPostIds.delete(
-    Number(currentPost.id)
+  Number(currentPost.id)
+);
+
+const cacheKey =
+  getSavedPostsCacheKey();
+
+if (cacheKey) {
+
+  sessionStorage.setItem(
+    cacheKey,
+    JSON.stringify(
+      [...savedPostIds]
+    )
   );
 
-  showToast("Removed from Saved");
+}
+
+showToast("Removed from Saved");
 
 }
 
@@ -1772,15 +3352,36 @@ async function toggleSave(){
 ----------------------------- */
 
 function displayPost(post, options) {
-
   const displayStart = performance.now();
 
   console.log(
     "DISPLAY: started"
   );
 
+  /*
+   * Always derive the feed category from
+   * the actual post being displayed.
+   *
+   * support   → heavier
+   * celebrate → lighter
+   */
+  if (post?.moment_type === "celebrate") {
+    selectedCategory = "light";
+  } else {
+    selectedCategory = "difficult";
+  }
+
+  updateSegmentUI();
+
   currentPost = post;
   categoryState[selectedCategory].currentPost = post;
+
+  console.log(
+    "DISPLAY: category resolved",
+    selectedCategory,
+    "moment_type =",
+    post?.moment_type
+  );
   updateSaveState(post.id);
 
   console.log(
@@ -2077,32 +3678,16 @@ console.log(
   "ms"
 );
 
-// Remember where this category was left
+  // Remember where this category was left
 categoryState[selectedCategory].currentPost = post;
 
-// Quietly preload the next post while the user reads
-preloadNextPost();
-
-// Continue hydrating remaining skipped posts in the background.
-// This starts after preload has had a chance to use the first
-// cached skipped post.
+// Quietly preload the next post while the user reads.
+// displayPost() is the single owner of next-post preloading.
 if (
-  getFeedQueue(selectedCategory).active.length === 0 &&
-  getFeedQueue(selectedCategory).skipped.length > 0
+  !nextPostCache[selectedCategory] &&
+  !nextPostPreloading[selectedCategory]
 ) {
-
-  hydrateSkippedPosts(
-    selectedCategory,
-    FEED_QUEUE_LIMIT
-  ).catch(error => {
-
-    console.error(
-      "Background skipped-post hydration failed:",
-      error
-    );
-
-  });
-
+  preloadNextPost();
 }
 
 console.log(
@@ -2208,16 +3793,6 @@ console.log(
 );
 
 /*
- * Start skipped-post hydration immediately.
- * fetchNextPost() will reuse the same promise.
- */
-const skippedHydrationPromise =
-  hydrateSkippedPosts(
-    selectedCategory,
-    2
-  );
-
-/*
  * First actual post.
  */
 const postStart =
@@ -2225,8 +3800,6 @@ const postStart =
 
 const result =
   await fetchNextPost();
-
-await skippedHydrationPromise;
 
   console.log(
     "STARTUP: fetchNextPost finished",
@@ -2259,6 +3832,14 @@ await skippedHydrationPromise;
     result.post,
     []
   );
+
+  /*
+ * Saved posts are not required to render the feed.
+ *
+ * Start loading them only after the first post
+ * has already been displayed.
+ */
+loadSavedPostsInBackground();
 
   /*
    * Hydrate quick responses when available.
@@ -2329,7 +3910,11 @@ async function preloadNextPost() {
 
   try {
 
-    const result = await fetchNextPost(true);
+    const result =
+  await fetchNextPost(
+    true,
+    false
+  );
 
     if (result) {
       nextPostCache[category] = result;
@@ -2405,18 +3990,50 @@ async function animateToNextPost() {
 
   content.classList.add("exiting");
 
-  if (cached) {
+ if (cached) {
 
-    await new Promise(r =>
-      setTimeout(r, 220)
+  await new Promise(r =>
+    setTimeout(r, 220)
+  );
+
+  nextPostCache[category] = null;
+
+  /*
+   * The post is now actually being displayed.
+   * If it came from the skipped backlog,
+   * consume it now rather than during preload.
+   */
+  if (cached.cameFromSkipped) {
+
+  const queue =
+    getFeedQueue(category);
+
+  const cachedPostId =
+    Number(cached.post.id);
+
+  queue.skipped =
+    queue.skipped.filter(
+      id =>
+        Number(id) !== cachedPostId
     );
 
-    nextPostCache[category] = null;
+  saveFeedQueue(
+    queue,
+    category
+  );
 
-    displayPost(
-      cached.post,
-      cached.options
-    );
+  console.log(
+    "FEED: displayed skipped post",
+    cachedPostId,
+    "remaining skipped =",
+    queue.skipped.length
+  );
+}
+
+  displayPost(
+    cached.post,
+    cached.options
+  );
 
   } else {
 
@@ -2462,12 +4079,6 @@ async function animateToNextPost() {
       content.classList.remove("entering");
     });
   });
-
-  /*
-   * Immediately start preparing the post
-   * after this one.
-   */
-  preloadNextPost();
 
 }
 
@@ -3330,8 +4941,27 @@ try {
     result.response_id
   ) {
 
-    respondedPostIds.push(currentPost.id);
-removePostFromQueue(currentPost.id);
+    respondedPostIds.push(
+  Number(currentPost.id)
+);
+
+const cacheKey =
+  getRespondedPostsCacheKey();
+
+if (cacheKey) {
+
+  sessionStorage.setItem(
+    cacheKey,
+    JSON.stringify(
+      respondedPostIds
+    )
+  );
+
+}
+
+removePostFromQueue(
+  currentPost.id
+);
 
 cancelStay();
 
@@ -3537,8 +5167,27 @@ const response = await fetch(
   result.backend_action === "withhold"
 ) {
 
-  respondedPostIds.push(currentPost.id);
-  removePostFromQueue(currentPost.id);
+  respondedPostIds.push(
+  Number(currentPost.id)
+);
+
+const cacheKey =
+  getRespondedPostsCacheKey();
+
+if (cacheKey) {
+
+  sessionStorage.setItem(
+    cacheKey,
+    JSON.stringify(
+      respondedPostIds
+    )
+  );
+
+}
+
+removePostFromQueue(
+  currentPost.id
+);
 
   cancelStay();
 
@@ -3718,8 +5367,27 @@ const response = await fetch(
   result.response_id
 ) {
 
-  respondedPostIds.push(currentPost.id);
-  removePostFromQueue(currentPost.id);
+  respondedPostIds.push(
+  Number(currentPost.id)
+);
+
+const cacheKey =
+  getRespondedPostsCacheKey();
+
+if (cacheKey) {
+
+  sessionStorage.setItem(
+    cacheKey,
+    JSON.stringify(
+      respondedPostIds
+    )
+  );
+
+}
+
+removePostFromQueue(
+  currentPost.id
+);
 
   cancelStay();
 
@@ -3830,6 +5498,14 @@ document.addEventListener("visibilitychange", () => {
 
 });
 
-window.addEventListener("beforeunload", cancelStay);
+window.addEventListener(
+  "beforeunload",
+  cancelStay
+);
+
+window.addEventListener(
+  "beforeunload",
+  flushPendingDraft
+);
 
 init();
