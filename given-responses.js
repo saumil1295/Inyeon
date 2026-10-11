@@ -137,7 +137,17 @@ const unsaveModal = document.getElementById("unsaveModal");
 const confirmUnsave = document.getElementById("confirmUnsave");
 const cancelUnsave = document.getElementById("cancelUnsave");
 
+const deleteDraftModal =
+  document.getElementById("deleteDraftModal");
+
+const confirmDeleteDraft =
+  document.getElementById("confirmDeleteDraft");
+
+const cancelDeleteDraft =
+  document.getElementById("cancelDeleteDraft");
+
 let postToUnsave = null;
+let draftToDelete = null;
 
 let currentSupportTab = "conversations";
 
@@ -222,10 +232,31 @@ if (visibleDrafts.length) {
       card.className = "draft-card";
 
       card.innerHTML = `
-        <div class="shared-card-top">
-          <div class="draft-pill">🌿 Waiting for you</div>
-          <span class="shared-date">${timeAgo(draft.updated_at)}</span>
-        </div>
+        <div class="shared-card-top draft-card-top">
+  <div class="draft-pill">🌿 Waiting for you</div>
+
+  <div class="draft-card-actions">
+    <span class="shared-date">${timeAgo(draft.updated_at)}</span>
+
+    <button
+      class="draft-menu-btn"
+      type="button"
+      aria-label="Draft options"
+      aria-haspopup="true"
+    >
+      ⋮
+    </button>
+
+    <div class="draft-menu">
+      <button
+        class="draft-delete-btn"
+        type="button"
+      >
+        Delete draft
+      </button>
+    </div>
+  </div>
+</div>
 
         <p class="shared-post-label">You're responding to</p>
 
@@ -249,6 +280,39 @@ if (visibleDrafts.length) {
   Continue writing →
 </button>
       `;
+
+      const menuBtn = card.querySelector(".draft-menu-btn");
+const menu = card.querySelector(".draft-menu");
+const deleteBtn = card.querySelector(".draft-delete-btn");
+
+menuBtn.addEventListener("click", (event) => {
+  event.stopPropagation();
+
+  // Close any other open draft menus
+  document.querySelectorAll(".draft-menu.open").forEach(openMenu => {
+    if (openMenu !== menu) {
+      openMenu.classList.remove("open");
+    }
+  });
+
+  menu.classList.toggle("open");
+});
+
+deleteBtn.addEventListener("click", (event) => {
+  event.stopPropagation();
+
+  // Close the three-dot menu
+  menu.classList.remove("open");
+
+  // Remember which draft is being deleted
+  draftToDelete = {
+    postId: draft.post_id,
+    card: card
+  };
+
+  // Open Inyeon confirmation modal
+  deleteDraftModal.classList.remove("hidden");
+});
 
       card.querySelector(".draft-continue-btn")
   .addEventListener("click", () => {
@@ -598,6 +662,27 @@ savedTab?.addEventListener("click", async()=>{
 
 });
 
+/* -----------------------------
+   Close Draft Menus
+----------------------------- */
+
+document.addEventListener("click", (event) => {
+
+  if (
+    !event.target.closest(".draft-menu") &&
+    !event.target.closest(".draft-menu-btn")
+  ) {
+
+    document
+      .querySelectorAll(".draft-menu.open")
+      .forEach(menu => {
+        menu.classList.remove("open");
+      });
+
+  }
+
+});
+
 document.addEventListener("click", e => {
 
   const btn =
@@ -690,6 +775,88 @@ confirmUnsave.onclick = async () => {
     requestAnimationFrame(() => {
       savedEmptyState.classList.add("fade-in");
     });
+
+  }
+
+};
+
+/* -----------------------------
+   Delete Draft Modal
+----------------------------- */
+
+cancelDeleteDraft.onclick = () => {
+
+  draftToDelete = null;
+
+  deleteDraftModal.classList.add("hidden");
+
+};
+
+
+deleteDraftModal.onclick = (event) => {
+
+  // Close when clicking the backdrop
+  if (event.target === deleteDraftModal) {
+
+    cancelDeleteDraft.onclick();
+
+  }
+
+};
+
+
+confirmDeleteDraft.onclick = async () => {
+
+  if (!draftToDelete) return;
+
+  const {
+    postId,
+    card
+  } = draftToDelete;
+
+  // Close modal
+  deleteDraftModal.classList.add("hidden");
+
+  const { error } = await client
+    .from("response_drafts")
+    .delete()
+    .eq("post_id", postId)
+    .eq("responder_anon_id", currentUser.id);
+
+  if (error) {
+
+    console.error(
+      "DRAFT DELETE ERROR:",
+      error
+    );
+
+    alert(
+      "Unable to delete this draft. Please try again."
+    );
+
+    draftToDelete = null;
+
+    return;
+  }
+
+  // Remove the draft card from the page
+  card.remove();
+
+  draftToDelete = null;
+
+  // Check whether anything remains
+  const remainingDrafts =
+    givenList.querySelectorAll(".draft-card").length;
+
+  const remainingResponses =
+    givenList.querySelectorAll(".shared-card").length;
+
+  if (
+    remainingDrafts === 0 &&
+    remainingResponses === 0
+  ) {
+
+    emptyState.classList.remove("hidden");
 
   }
 

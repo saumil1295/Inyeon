@@ -185,9 +185,10 @@ saveEditBtn?.addEventListener("click", async () => {
   const { error } = await client
     .from("posts")
     .update({
-      content: text,
-      need_category: guessCategory(text)
-    })
+  content: text,
+  need_category: guessCategory(text),
+  updated_at: new Date().toISOString()
+})
     .eq("id", selectedPost.id)
     .eq("anon_id", currentUser.id)
     .gt("edit_until", new Date().toISOString());

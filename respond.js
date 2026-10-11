@@ -44,6 +44,7 @@ document.getElementById("menuSignOut").addEventListener("click", async (e) => {
 let currentUser = null;
 let currentProfile = null;
 let currentSession = null;
+let responseSubmissionInProgress = false;
 
 async function requireAuth() {
 
@@ -289,6 +290,7 @@ const sendAnywayBtn = document.getElementById("sendAnywayBtn");
 let pendingResponseText = null;
 let pendingResponsePostId = null;
 let pendingResponseWasWarned = false;
+let pendingResponseWarningToken = null;
 
 let responseSafetyPopupMode = "normal";
 
@@ -305,6 +307,11 @@ const nextPostCache = {
 const nextPostPreloading = {
   difficult: false,
   light: false
+};
+
+const nextPostPreloadPromises = {
+  difficult: null,
+  light: null
 };
 
 const feedRefillPromise = {
@@ -1031,9 +1038,22 @@ async function switchCategory(nextCategory){
 
     const result = await fetchNextPost();
 
-    if(result){
-      displayPost(result.post, result.options);
-    }
+    if (result) {
+
+  if (result.cameFromSkipped) {
+
+    consumeDisplayedSkippedPost(
+      selectedCategory,
+      result.post.id
+    );
+
+  }
+
+  displayPost(
+    result.post,
+    result.options
+  );
+}
 
   }
 
@@ -1967,15 +1987,16 @@ async function initCriticalFeedData() {
 
   })();
 
-  /*
-   * IMPORTANT:
+    /*
+   * Responded post IDs are required before the
+   * first feed request so previously responded
+   * posts can never re-enter the feed.
    *
-   * Do not await any of the above.
-   *
-   * The first feed request can start immediately.
+   * Drafts can remain background-only.
    */
+  await responsesPromise;
 
-  return [];
+  return cachedDraftPostIds || [];
 }
 
 async function initNonCriticalData() {
@@ -2700,17 +2721,25 @@ if (
   const category =
     selectedCategory;
 
+    /*
+ * Exclude everything the user should not see again:
+ * active posts, skipped posts, responded posts,
+ * and drafted posts.
+ *
+ * Skipped posts MUST be sent to the RPC because
+ * the frontend will reject them if they are returned.
+ */
+
   const existingIds = [
   ...queue.active,
+  ...queue.skipped,
   ...respondedPostIds,
-  ...draftPostIds
+  ...draftPostIds,
+  ...(excludeCurrent && currentPost?.id
+    ? [currentPost.id]
+    : [])
 ].map(Number);
 
-  /*
-   * If a refill is already running,
-   * reuse that promise instead of
-   * starting another Supabase request.
-   */
   if (!feedRefillPromise[category]) {
 
     console.log(
@@ -2730,6 +2759,11 @@ if (
       console.log(
   "FEED RPC EXCLUDED IDS:",
   existingIds
+);
+
+console.log(
+  "AUTH BEFORE FEED RPC:",
+  await client.auth.getUser()
 );
 
     const {
@@ -2758,19 +2792,24 @@ if (
     );
 
     console.log(
-      "FEED: personalized posts returned:",
-      personalizedPosts?.length || 0
-    );
+  "FEED: personalized posts returned:",
+  personalizedPosts?.length || 0
+);
 
-    if (error) {
+console.log(
+  "FEED RPC RETURNED IDS:",
+  (personalizedPosts || []).map(p => p.id)
+);
 
-      console.error(
-        "Personalized feed refill failed:",
-        error
-      );
+if (error) {
 
-      return;
-    }
+  console.error(
+    "Personalized feed refill failed:",
+    error
+  );
+
+  return;
+}
 
     if (
       personalizedPosts &&
@@ -2835,14 +2874,15 @@ if (
    */
   if (
   queue.active.length === 0 &&
-  queue.skipped.length === 0
+  feedRefillPromise[category]
 ) {
+
   await feedRefillPromise[category];
 
   queue =
     getFeedQueue(category);
 
-      console.log(
+  console.log(
     "FEED DEBUG: after refill wait",
     Math.round(
       performance.now() - fetchStart
@@ -2853,8 +2893,7 @@ if (
     "skipped =",
     queue.skipped.length
   );
-
-  }
+}
 
 }
 
@@ -2898,17 +2937,75 @@ if (queue.active.length > 0) {
 
   } else {
 
+  /*
+   * No active posts remain.
+   *
+   * Before falling back to skipped posts, give the
+   * personalized feed refill a chance to find new posts.
+   *
+   * Priority:
+   *
+   *   1. Fresh/new posts from the personalized RPC
+   *   2. Skipped posts if no fresh posts are available
+   *
+   * IMPORTANT:
+   * Do NOT remove the skipped post here.
+   *
+   * fetchNextPost() may only be preloading it.
+   * The skipped post should be removed from the
+   * backlog only when it is actually displayed.
+   */
+
+  /*
+   * If a personalized refill is already running,
+   * wait for it to finish before falling back
+   * to the skipped backlog.
+   */
+  if (feedRefillPromise[selectedCategory]) {
+
+    await feedRefillPromise[selectedCategory];
+
     /*
-     * No active posts remain.
+     * The refill may have added fresh posts
+     * to the active queue.
+     */
+    queue =
+      getFeedQueue(selectedCategory);
+
+  }
+
+  /*
+   * Fresh posts have priority.
+   *
+   * If the refill added anything to the active queue,
+   * use those posts instead of touching skipped posts.
+   */
+  if (queue.active.length > 0) {
+
+    candidateIds = [
+      ...queue.active
+    ];
+
+    if (
+      excludeCurrent &&
+      currentPost?.id
+    ) {
+
+      candidateIds =
+        candidateIds.filter(
+          id =>
+            Number(id) !==
+            Number(currentPost.id)
+        );
+
+    }
+
+  } else {
+
+    /*
+     * No fresh posts were found.
      *
-     * Start looking through the skipped backlog.
-     *
-     * IMPORTANT:
-     * Do NOT remove the skipped post here.
-     *
-     * fetchNextPost() may only be preloading it.
-     * The skipped post should be removed from the
-     * backlog only when it is actually displayed.
+     * Now fall back to the skipped backlog.
      */
     candidateIds = [
       ...queue.skipped
@@ -2933,6 +3030,7 @@ if (queue.active.length > 0) {
       );
     }
   }
+}
 
 console.log(
   "FEED DEBUG: after candidate selection",
@@ -3611,20 +3709,18 @@ console.log(
 
   document
   .getElementById("sendResponseBtn")
-  .addEventListener("click", () => {
+  .onclick = () => {
 
     const text = input.value.trim();
 
-    if (!text){
-
+    if (!text) {
       showEmptyResponsePopup();
       return;
-
     }
 
     sendFreeTextResponse(text);
 
-  });
+  };
 
   document
   .getElementById("holdSpaceBtn")
@@ -3826,12 +3922,25 @@ const result =
   );
 
   /*
-   * Render immediately.
-   */
-  displayPost(
-    result.post,
-    []
+ * Consume a skipped post when it becomes
+ * the initially displayed post.
+ */
+if (result.cameFromSkipped) {
+
+  consumeDisplayedSkippedPost(
+    selectedCategory,
+    result.post.id
   );
+
+}
+
+/*
+ * Render immediately.
+ */
+displayPost(
+  result.post,
+  []
+);
 
   /*
  * Saved posts are not required to render the feed.
@@ -3902,43 +4011,69 @@ async function preloadNextPost() {
     return;
   }
 
-  if (nextPostPreloading[category]) {
-    return;
+  /*
+   * If a preload is already running,
+   * return that exact same promise.
+   *
+   * This prevents another fetch from
+   * selecting the same post.
+   */
+  if (nextPostPreloadPromises[category]) {
+    return nextPostPreloadPromises[category];
   }
 
-  nextPostPreloading[category] = true;
+  const preloadPromise = (async () => {
 
-  try {
+    nextPostPreloading[category] = true;
 
-    const result =
-  await fetchNextPost(
-    true,
-    false
-  );
+    try {
 
-    if (result) {
-      nextPostCache[category] = result;
-      console.log(
-  "NEXT POST PRELOADED",
-  result.post.id,
-  Math.round(performance.now() - preloadStart),
-  "ms"
-);
+      const result =
+        await fetchNextPost(
+          true,
+          false
+        );
+
+      if (result) {
+
+        nextPostCache[category] = result;
+
+        console.log(
+          "NEXT POST PRELOADED",
+          result.post.id,
+          Math.round(
+            performance.now() - preloadStart
+          ),
+          "ms"
+        );
+
+      }
+
+      return result;
+
+    } catch (error) {
+
+      console.error(
+        "NEXT POST PRELOAD FAILED:",
+        error
+      );
+
+      return null;
+
+    } finally {
+
+      nextPostPreloading[category] = false;
+
+      nextPostPreloadPromises[category] = null;
+
     }
 
-  } catch (error) {
+  })();
 
-    console.error(
-      "NEXT POST PRELOAD FAILED:",
-      error
-    );
+  nextPostPreloadPromises[category] =
+    preloadPromise;
 
-  } finally {
-
-    nextPostPreloading[category] = false;
-
-  }
-
+  return preloadPromise;
 }
 
 /* -----------------------------
@@ -3969,6 +4104,44 @@ async function preloadOtherCategory(){
 }
 
 /* -----------------------------
+   Consume displayed skipped post
+----------------------------- */
+
+function consumeDisplayedSkippedPost(
+  category,
+  postId
+) {
+
+  const queue =
+    getFeedQueue(category);
+
+  const id =
+    Number(postId);
+
+  if (!queue.skipped.includes(id)) {
+    return;
+  }
+
+  queue.skipped =
+    queue.skipped.filter(
+      skippedId =>
+        Number(skippedId) !== id
+    );
+
+  saveFeedQueue(
+    queue,
+    category
+  );
+
+  console.log(
+    "FEED: consumed displayed skipped post",
+    id,
+    "remaining skipped =",
+    queue.skipped.length
+  );
+}
+
+/* -----------------------------
    Card transition
 ----------------------------- */
 
@@ -3988,9 +4161,12 @@ async function animateToNextPost() {
    */
   const cached = nextPostCache[category];
 
-  content.classList.add("exiting");
+const preloadPromise =
+  nextPostPreloadPromises[category];
 
- if (cached) {
+content.classList.add("exiting");
+
+if (cached) {
 
   await new Promise(r =>
     setTimeout(r, 220)
@@ -4005,29 +4181,11 @@ async function animateToNextPost() {
    */
   if (cached.cameFromSkipped) {
 
-  const queue =
-    getFeedQueue(category);
-
-  const cachedPostId =
-    Number(cached.post.id);
-
-  queue.skipped =
-    queue.skipped.filter(
-      id =>
-        Number(id) !== cachedPostId
-    );
-
-  saveFeedQueue(
-    queue,
-    category
+  consumeDisplayedSkippedPost(
+    category,
+    cached.post.id
   );
 
-  console.log(
-    "FEED: displayed skipped post",
-    cachedPostId,
-    "remaining skipped =",
-    queue.skipped.length
-  );
 }
 
   displayPost(
@@ -4035,7 +4193,41 @@ async function animateToNextPost() {
     cached.options
   );
 
-  } else {
+  } else if (preloadPromise) {
+
+  await new Promise(r =>
+    setTimeout(r, 220)
+  );
+
+  const result =
+    await preloadPromise;
+
+  nextPostCache[category] = null;
+
+  if (!result) {
+
+    postContainer.classList.add("hidden");
+    noPosts.classList.remove("hidden");
+    content.classList.remove("exiting");
+
+    return;
+  }
+
+  if (result.cameFromSkipped) {
+
+    consumeDisplayedSkippedPost(
+      category,
+      result.post.id
+    );
+
+  }
+
+  displayPost(
+    result.post,
+    result.options
+  );
+
+} else {
 
     /*
      * Preload wasn't ready yet.
@@ -4051,21 +4243,30 @@ async function animateToNextPost() {
     );
 
     const result =
-      await fetchPromise;
+  await fetchPromise;
 
-    if (!result) {
+if (!result) {
 
-      postContainer.classList.add("hidden");
-      noPosts.classList.remove("hidden");
-      content.classList.remove("exiting");
+  postContainer.classList.add("hidden");
+  noPosts.classList.remove("hidden");
+  content.classList.remove("exiting");
 
-      return;
-    }
+  return;
+}
 
-    displayPost(
-      result.post,
-      result.options
-    );
+if (result.cameFromSkipped) {
+
+  consumeDisplayedSkippedPost(
+    category,
+    result.post.id
+  );
+
+}
+
+displayPost(
+  result.post,
+  result.options
+);
   }
 
   /*
@@ -4583,6 +4784,10 @@ function showResponseSafetyPopup(
 
   if (!responseSafetyCheck) return;
 
+  /* ---------------------------------------------
+     URGENT
+  --------------------------------------------- */
+
   if (type === "urgent") {
 
     if (responseSafetyTitle) {
@@ -4616,7 +4821,94 @@ function showResponseSafetyPopup(
       sendAnywayBtn.style.display = "none";
     }
 
-  } else {
+  }
+
+    /* ---------------------------------------------
+     STRONG
+  --------------------------------------------- */
+
+  else if (type === "strong") {
+
+    if (responseSafetyTitle) {
+
+      if (violationCount >= 3) {
+
+        responseSafetyTitle.textContent =
+          "Sending this will suspend your account.";
+
+      } else if (violationCount === 2) {
+
+        responseSafetyTitle.textContent =
+          "Please reconsider this response.";
+
+      } else {
+
+        responseSafetyTitle.textContent =
+          "This response could seriously hurt someone.";
+
+      }
+
+    }
+
+    if (responseSafetyText) {
+
+      if (violationCount >= 3) {
+
+        responseSafetyText.textContent =
+          "This response contains language that could seriously affect the person who shared this. You've already received two warnings for similar responses.";
+
+      } else if (violationCount === 2) {
+
+        responseSafetyText.textContent =
+          "This response contains language that could seriously affect the person who shared this. You've already received one warning for a similar response.";
+
+      } else {
+
+        responseSafetyText.textContent =
+          "This response contains language that could make the person who shared this feel unsafe, pressured, or seriously uncomfortable.";
+
+      }
+
+    }
+
+    if (responseSafetyQuestion) {
+
+      if (violationCount >= 3) {
+
+        responseSafetyQuestion.textContent =
+          "If you send this response anyway, your account will be suspended for 7 days. We strongly recommend editing your response.";
+
+      } else if (violationCount === 2) {
+
+        responseSafetyQuestion.textContent =
+          "One more violation may result in a 7-day suspension. We strongly recommend editing your response.";
+
+      } else {
+
+        responseSafetyQuestion.textContent =
+          "We recommend changing it before sending.";
+
+      }
+
+    }
+
+    if (sendAnywayBtn) {
+      sendAnywayBtn.classList.remove("hidden");
+      sendAnywayBtn.style.display = "";
+    }
+
+    if (editResponseBtn) {
+      editResponseBtn.textContent =
+        "Edit response";
+    }
+
+  }
+
+  /* ---------------------------------------------
+     GENTLE
+  --------------------------------------------- */
+
+  else {
 
     if (responseSafetyTitle) {
       responseSafetyTitle.textContent =
@@ -4625,7 +4917,7 @@ function showResponseSafetyPopup(
 
     if (responseSafetyText) {
       responseSafetyText.textContent =
-        "This response contains something that could feel uncomfortable, dismissive, or hurtful to the person who shared this.";
+        "This response may come across as dismissive, judgmental, or hurtful to the person who shared this.";
     }
 
     if (responseSafetyQuestion) {
@@ -4719,8 +5011,23 @@ async function recordUrgentModeration(
 
 async function sendFreeTextResponse(responseText) {
 
+  if (responseSubmissionInProgress) {
+
+    console.warn(
+      "BLOCKED: duplicate response submission"
+    );
+
+    return;
+  }
+
+  responseSubmissionInProgress = true;
+
+  pendingResponseWarningToken = null;
+
   const sendBtn =
     document.getElementById("sendResponseBtn");
+
+  pendingResponseWarningToken = null;
 
   const skipBtn =
     document.getElementById("skipBtn");
@@ -4792,33 +5099,35 @@ try {
     return;
   }
 
-  const response = await fetch(
-    `${SUPABASE_URL}/functions/v1/submit-response`,
-    {
-      method: "POST",
+const response = await fetch(
+  `${SUPABASE_URL}/functions/v1/submit-response`,
+  {
+    method: "POST",
 
-      headers: {
-        "Content-Type": "application/json",
-        "apikey": SUPABASE_ANON_KEY,
-        "Authorization":
-          `Bearer ${accessToken}`
-      },
+    headers: {
+      "Content-Type": "application/json",
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization":
+        `Bearer ${accessToken}`
+    },
 
-      body: JSON.stringify({
-        post_id: currentPost.id,
-        response_text: responseText,
-        response_type: "written",
-        send_anyway: false
-      })
-    }
-  );
+    body: JSON.stringify({
+      post_id: currentPost.id,
+      response_text: responseText,
+      response_type: "written",
+      send_anyway: false
+    })
+  }
+);
 
-  result = await response.json();
+result = await response.json();
 
-  console.log(
-    "Submit Response result:",
-    result
-  );
+responseSubmissionInProgress = false;
+
+console.log(
+  "Submit Response result:",
+  result
+);
 
     if (!response.ok) {
 
@@ -4849,6 +5158,8 @@ try {
     }
 
   } catch (error) {
+
+    responseSubmissionInProgress = false;
 
     console.error(
       "Submit response error:",
@@ -4910,76 +5221,120 @@ try {
      WARNING
   --------------------------------------------- */
 
+  if (result.backend_action === "withhold") {
+
+  pendingResponseText = responseText;
+
+  pendingResponsePostId = currentPost.id;
+
+  pendingResponseWasWarned = true;
+
+  pendingResponseWarningToken =
+    result.warning_token || null;
+
+  console.log("WARNING DEBUG:", {
+    warning_type: result.warning_type,
+    enforcement: result.enforcement,
+    strong_violation_count:
+      result.enforcement?.strong_violation_count,
+    account_status:
+      result.enforcement?.account_status,
+    suspended_until:
+      result.enforcement?.suspended_until
+  });
+
+  /*
+   * THIRD STRONG VIOLATION
+   *
+   * The backend has already suspended
+   * the account. Do not show the normal
+   * warning and do not allow Send Anyway.
+   */
   if (
-    result.backend_action === "withhold"
+    result.warning_type === "strong" &&
+    result.enforcement?.account_status === "suspended"
   ) {
 
-    pendingResponseText = responseText;
-    pendingResponsePostId = currentPost.id;
-    pendingResponseWasWarned = true;
+    showAccountSuspendedPopup(
+      result.enforcement?.suspended_until
+    );
 
-    showResponseSafetyPopup("normal");
+  } else {
 
-    sendBtn.disabled = false;
-    skipBtn.disabled = false;
+    showResponseSafetyPopup(
+      result.warning_type || "gentle",
+      result.enforcement?.strong_violation_count
+    );
 
-    document
-      .querySelectorAll("#presetButtons .response-btn")
-      .forEach(btn => {
-        btn.disabled = false;
-      });
-
-    return;
   }
+
+  sendBtn.disabled = false;
+
+  skipBtn.disabled = false;
+
+  document
+    .querySelectorAll("#presetButtons .response-btn")
+    .forEach(btn => {
+      btn.disabled = false;
+    });
+
+  return;
+}
 
   /* ---------------------------------------------
      PUBLISH
   --------------------------------------------- */
 
   if (
-    result.backend_action === "publish" &&
-    result.response_id
-  ) {
+  result.backend_action === "withhold" ||
+  result.backend_action === "publish"
+) {
 
-    respondedPostIds.push(
-  Number(currentPost.id)
-);
-
-const cacheKey =
-  getRespondedPostsCacheKey();
-
-if (cacheKey) {
-
-  sessionStorage.setItem(
-    cacheKey,
-    JSON.stringify(
-      respondedPostIds
-    )
+  respondedPostIds.push(
+    Number(currentPost.id)
   );
 
-}
+  const cacheKey =
+    getRespondedPostsCacheKey();
 
-removePostFromQueue(
-  currentPost.id
-);
+  if (cacheKey) {
 
-cancelStay();
+    sessionStorage.setItem(
+      cacheKey,
+      JSON.stringify(
+        respondedPostIds
+      )
+    );
 
-    await clearDraft(currentPost.id);
+  }
 
-    if (responseSafetyCheck) {
-      responseSafetyCheck.classList.add("hidden");
-      responseSafetyCheck.style.display = "none";
-    }
+  removePostFromQueue(
+    currentPost.id
+  );
 
-    pendingResponseText = null;
-    pendingResponsePostId = null;
-    pendingResponseWasWarned = false;
+  cancelStay();
+
+  await clearDraft(currentPost.id);
+
+  /*
+   * Gentle responses are published and should
+   * receive the normal recognition moment.
+   *
+   * Strong responses are withheld and must
+   * advance silently.
+   */
+  if (result.backend_action === "publish") {
 
     showConfirmationAndAdvance("written");
 
-    return;
+  } else {
+
+    animateToNextPost();
+
   }
+
+  return;
+}
 
   /* ---------------------------------------------
      FAIL CLOSED
@@ -5028,6 +5383,7 @@ editResponseBtn?.addEventListener("click", () => {
  pendingResponseText = null;
 pendingResponsePostId = null;
 pendingResponseWasWarned = false;
+pendingResponseWarningToken = null;
 
 if (sendAnywayBtn) {
   sendAnywayBtn.classList.remove("hidden");
@@ -5061,13 +5417,22 @@ if (responseSafetyQuestion) {
 
 });
 
-sendAnywayBtn?.addEventListener("click", async () => {
+sendAnywayBtn?.addEventListener("click", async (event) => {
+
+  event.preventDefault();
+  event.stopPropagation();
 
   if (!pendingResponseText || !pendingResponsePostId) {
     return;
   }
 
   const responseText = pendingResponseText;
+
+  const warningToken =
+  pendingResponseWarningToken;
+
+  const wasWarned =
+  pendingResponseWasWarned;
 
   if (responseSafetyCheck) {
     responseSafetyCheck.classList.add("hidden");
@@ -5132,7 +5497,8 @@ const response = await fetch(
           post_id: currentPost.id,
           response_text: responseText,
           response_type: "written",
-          send_anyway: true
+          send_anyway: true,
+          warning_token: warningToken
         })
       }
     );
@@ -5163,8 +5529,23 @@ const response = await fetch(
       return;
     }
 
+    pendingResponseWarningToken = null;
+
     if (
-  result.backend_action === "withhold"
+  result.backend_action === "suspended"
+) {
+
+  showAccountSuspendedPopup(
+    result.suspended_until ||
+    result.enforcement?.suspended_until
+  );
+
+  return;
+}
+
+if (
+  result.backend_action === "withhold" ||
+  result.backend_action === "publish"
 ) {
 
   respondedPostIds.push(
@@ -5193,9 +5574,17 @@ removePostFromQueue(
 
   await clearDraft(currentPost.id);
 
+  if (wasWarned) {
+
+  animateToNextPost();
+
+} else {
+
   showConfirmationAndAdvance("written");
 
-  return;
+}
+
+return;
 }
 
 console.error(
@@ -5426,7 +5815,9 @@ if (result.backend_action === "withhold") {
   pendingResponsePostId = currentPost.id;
   pendingResponseWasWarned = true;
 
-  showResponseSafetyPopup("normal");
+  showResponseSafetyPopup(
+  result.warning_type || "gentle"
+);
 
   return;
 }
